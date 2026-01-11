@@ -1,0 +1,52 @@
+# Sample pipeline definition
+name: "Customer Data Processing"
+description: "Process customer data from CSV to database"
+version: "1.0"
+
+# Pipeline variables
+variables:
+  batch_size: 100
+  max_retries: 3
+
+# Pipeline stages
+stages:
+  - id: "read_data"
+    name: "Read Customer Data"
+    type: "input"
+    config:
+      source: "customers.csv"
+      format: "csv"
+    dependencies: []
+    timeout: 300
+    
+  - id: "validate_data"
+    name: "Validate Customer Records"
+    type: "transform"
+    config:
+      operation: "validate"
+      rules:
+        - "email_format"
+        - "phone_format"
+    dependencies: ["read_data"]
+    timeout: 180
+    
+  - id: "transform_data"
+    name: "Transform Customer Data"
+    type: "transform"
+    config:
+      operation: "transform"
+      mappings:
+        first_name: "firstName"
+        last_name: "lastName"
+    dependencies: ["validate_data"]
+    timeout: 180
+    
+  - id: "write_data"
+    name: "Write to Database"
+    type: "output"
+    config:
+      destination: "database"
+      table: "customers"
+      mode: "append"
+    dependencies: ["transform_data"]
+    timeout: 300
