@@ -1,111 +1,182 @@
 """
-Pydantic schemas for API requests and responses
+Pydantic schemas for API request/response models.
 """
+from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from enum import Enum
 
-from backend.models.pipeline import PipelineStatus, StageStatus
+
+class StageTypeSchema(str, Enum):
+    """Stage types"""
+    INPUT = "input"
+    TRANSFORM = "transform"
+    OUTPUT = "output"
+    VALIDATION = "validation"
+
+
+class ExecutionStatusSchema(str, Enum):
+    """Execution status"""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class LogLevelSchema(str, Enum):
+    """Log levels"""
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARN = "WARN"
+    ERROR = "ERROR"
+
+
+# Stage Schemas
+class StageBase(BaseModel):
+    """Base stage schema"""
+    name: str
+    type: StageTypeSchema
+    config: Dict[str, Any] = Field(default_factory=dict)
+    dependencies: List[str] = Field(default_factory=list)
+
+
+class StageCreate(StageBase):
+    """Schema for creating a stage"""
+    id: Optional[str] = None
+
+
+class StageResponse(StageBase):
+    """Schema for stage response"""
+    id: str
+    
+    class Config:
+        from_attributes = True
 
 
 # Pipeline Schemas
-class PipelineCreate(BaseModel):
-    """Schema for creating a pipeline"""
+class PipelineBase(BaseModel):
+    """Base pipeline schema"""
     name: str
     description: str
-    version: str = "1.0"
-    stages: List[Dict[str, Any]]
-    variables: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PipelineCreate(PipelineBase):
+    """Schema for creating a pipeline"""
+    stages: List[StageCreate]
 
 
 class PipelineUpdate(BaseModel):
     """Schema for updating a pipeline"""
     name: Optional[str] = None
     description: Optional[str] = None
-    stages: Optional[List[Dict[str, Any]]] = None
-    variables: Optional[Dict[str, Any]] = None
+    stages: Optional[List[StageCreate]] = None
 
 
-class PipelineResponse(BaseModel):
+class PipelineResponse(PipelineBase):
     """Schema for pipeline response"""
     id: str
-    name: str
-    description: str
-    version: str
-    stages: List[Dict[str, Any]]
-    variables: Dict[str, Any]
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    stages: List[StageResponse]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class PipelineListResponse(BaseModel):
+    """Schema for pipeline list response"""
+    pipelines: List[PipelineResponse]
+    total: int
 
 
 # Execution Schemas
 class ExecutionCreate(BaseModel):
     """Schema for creating an execution"""
     pipeline_id: str
-    variables: Optional[Dict[str, Any]] = None
 
 
-class StageExecutionResponse(BaseModel):
-    """Schema for stage execution response"""
-    stage_id: str
-    status: StageStatus
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
-    duration: Optional[float]
-    output: Optional[Dict[str, Any]]
-    error: Optional[str]
+class LogEntryResponse(BaseModel):
+    """Schema for log entry response"""
+    id: str
+    execution_id: str
+    stage_id: Optional[str]
+    level: LogLevelSchema
+    message: str
+    timestamp: datetime
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    class Config:
+        from_attributes = True
 
 
 class ExecutionResponse(BaseModel):
     """Schema for execution response"""
     id: str
     pipeline_id: str
-    pipeline_name: str
-    status: PipelineStatus
+    status: ExecutionStatusSchema
     started_at: datetime
     completed_at: Optional[datetime]
-    duration: Optional[float]
-    stage_executions: List[StageExecutionResponse] = Field(default_factory=list)
     error: Optional[str]
+    stages_completed: int
+    total_stages: int
+    duration: Optional[float]
+    
+    class Config:
+        from_attributes = True
 
 
-class ExecutionLogsResponse(BaseModel):
-    """Schema for execution logs"""
-    execution_id: str
-    logs: List[str]
+class ExecutionDetailResponse(ExecutionResponse):
+    """Schema for detailed execution response with logs"""
+    logs: List[LogEntryResponse]
+
+
+class ExecutionListResponse(BaseModel):
+    """Schema for execution list response"""
+    executions: List[ExecutionResponse]
+    total: int
 
 
 # Metrics Schemas
-class MetricValue(BaseModel):
-    """Single metric value"""
+class MetricResponse(BaseModel):
+    """Schema for metric response"""
     name: str
     value: float
-    unit: str
+    unit: Optional[str] = None
     timestamp: datetime
 
 
-class MetricsResponse(BaseModel):
-    """Schema for metrics response"""
-    cpu: float
-    memory: float
-    throughput: float
+class SystemMetricsResponse(BaseModel):
+    """Schema for system metrics response"""
+    cpu_usage: float
+    memory_usage: float
+    pipeline_throughput: int
     active_executions: int
+    failure_rate: float
     total_pipelines: int
     success_rate: float
-    failure_rate: float
     avg_duration: float
     timestamp: datetime
 
 
 class MetricsHistoryResponse(BaseModel):
-    """Schema for metrics history"""
-    metrics: List[MetricsResponse]
+    """Schema for metrics history response"""
+    metrics: List[MetricResponse]
+    period: str
     start_time: datetime
     end_time: datetime
 
 
-# Generic Response
-class MessageResponse(BaseModel):
-    """Generic message response"""
+# Error Schemas
+class ErrorResponse(BaseModel):
+    """Schema for error responses"""
+    error: str
+    detail: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+# Success Schemas
+class SuccessResponse(BaseModel):
+    """Schema for success responses"""
     message: str
-    success: bool = True
+    data: Optional[Dict[str, Any]] = None

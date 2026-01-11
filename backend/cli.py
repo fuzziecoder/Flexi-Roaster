@@ -1,119 +1,145 @@
 """
-CLI for testing pipeline execution
+CLI interface for FlexiRoaster Pipeline Engine.
+Allows testing pipeline execution from command line.
 """
-import sys
 import argparse
+import sys
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add backend to path
+sys.path.insert(0, str(Path(__file__).parent))
 
 from backend.core.pipeline_engine import PipelineEngine
 from backend.core.executor import PipelineExecutor
+from backend.models.pipeline import LogLevel
+
+
+def execute_pipeline(pipeline_path: str, verbose: bool = False):
+    """Execute a pipeline from a YAML/JSON file"""
+    print(f"\n{'='*60}")
+    print(f"FlexiRoaster Pipeline Executor")
+    print(f"{'='*60}\n")
+    
+    try:
+        # Parse pipeline
+        print(f"📄 Loading pipeline from: {pipeline_path}")
+        engine = PipelineEngine()
+        pipeline = engine.parse_pipeline(pipeline_path)
+        print(f"✅ Pipeline loaded: {pipeline.name}")
+        print(f"   Description: {pipeline.description}")
+        print(f"   Stages: {len(pipeline.stages)}")
+        
+        # Validate pipeline
+        print(f"\n🔍 Validating pipeline...")
+        is_valid, errors = engine.validate_pipeline(pipeline)
+        if not is_valid:
+            print(f"❌ Pipeline validation failed:")
+            for error in errors:
+                print(f"   - {error}")
+            return 1
+        print(f"✅ Pipeline validation passed")
+        
+        # Execute pipeline
+        print(f"\n🚀 Executing pipeline...\n")
+        executor = PipelineExecutor()
+        execution = executor.execute(pipeline)
+        
+        # Print execution results
+        print(f"\n{'='*60}")
+        print(f"Execution Results")
+        print(f"{'='*60}")
+        print(f"Status: {execution.status.value}")
+        print(f"Duration: {execution.duration:.2f}s" if execution.duration else "Duration: N/A")
+        print(f"Stages Completed: {execution.stages_completed}/{execution.total_stages}")
+        
+        if execution.error:
+            print(f"\n❌ Error: {execution.error}")
+        
+        # Print logs
+        if verbose or execution.status.value == 'failed':
+            print(f"\n{'='*60}")
+            print(f"Execution Logs")
+            print(f"{'='*60}")
+            for log in execution.logs:
+                level_emoji = {
+                    'INFO': 'ℹ️',
+                    'WARN': '⚠️',
+                    'ERROR': '❌',
+                    'DEBUG': '🔧'
+                }.get(log.level.value, '📝')
+                
+                stage_info = f"[{log.stage_id}]" if log.stage_id else "[SYSTEM]"
+                print(f"{level_emoji} {log.timestamp.strftime('%H:%M:%S')} {stage_info} {log.message}")
+        
+        # Return appropriate exit code
+        return 0 if execution.status.value == 'completed' else 1
+        
+    except FileNotFoundError as e:
+        print(f"❌ Error: {e}")
+        return 1
+    except ValueError as e:
+        print(f"❌ Error: {e}")
+        return 1
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
+def list_examples():
+    """List available example pipelines"""
+    examples_dir = Path(__file__).parent / "backend" / "examples"
+    if not examples_dir.exists():
+        print("No examples directory found")
+        return
+    
+    print("\nAvailable example pipelines:")
+    for file in examples_dir.glob("*.yaml"):
+        print(f"  - {file.name}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='FlexiRoaster Pipeline CLI')
-    parser.add_argument('command', choices=['execute', 'validate', 'list'], help='Command to run')
-    parser.add_argument('--pipeline', '-p', help='Pipeline file path (YAML/JSON)')
-    parser.add_argument('--id', help='Pipeline ID (for execute)')
+    """Main CLI entry point"""
+    parser = argparse.ArgumentParser(
+        description="FlexiRoaster Pipeline Engine CLI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python -m backend.cli execute --pipeline examples/sample.yaml
+  python -m backend.cli execute --pipeline examples/sample.yaml --verbose
+  python -m backend.cli list-examples
+        """
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Execute command
+    execute_parser = subparsers.add_parser('execute', help='Execute a pipeline')
+    execute_parser.add_argument(
+        '--pipeline',
+        '-p',
+        required=True,
+        help='Path to pipeline YAML/JSON file'
+    )
+    execute_parser.add_argument(
+        '--verbose',
+        '-v',
+        action='store_true',
+        help='Show detailed logs'
+    )
+    
+    # List examples command
+    subparsers.add_parser('list-examples', help='List available example pipelines')
     
     args = parser.parse_args()
     
-    engine = PipelineEngine()
-    executor = PipelineExecutor()
-    
     if args.command == 'execute':
-        if not args.pipeline:
-            print("Error: --pipeline required for execute command")
-            sys.exit(1)
-        
-        try:
-            # Load pipeline
-            print(f"Loading pipeline from: {args.pipeline}")
-            if args.pipeline.endswith('.yaml') or args.pipeline.endswith('.yml'):
-                pipeline = engine.load_from_yaml(args.pipeline)
-            else:
-                pipeline = engine.load_from_json(args.pipeline)
-            
-            print(f"Pipeline loaded: {pipeline.name} (ID: {pipeline.id})")
-            print(f"Stages: {len(pipeline.stages)}")
-            
-            # Create execution
-            execution = engine.create_execution(pipeline.id)
-            print(f"\nExecution ID: {execution.id}")
-            print(f"Status: {execution.status}")
-            
-            # Execute pipeline
-            print("\n" + "="*50)
-            print("EXECUTING PIPELINE")
-            print("="*50 + "\n")
-            
-            result = executor.execute(pipeline, execution)
-            
-            # Print results
-            print("\n" + "="*50)
-            print("EXECUTION RESULTS")
-            print("="*50)
-            print(f"Status: {result.status}")
-            print(f"Duration: {result.duration:.2f}s")
-            
-            if result.error:
-                print(f"Error: {result.error}")
-            
-            print(f"\nStages executed: {len(result.stage_executions)}")
-            for stage_exec in result.stage_executions:
-                status_symbol = "✓" if stage_exec.status == "completed" else "✗"
-                print(f"  {status_symbol} {stage_exec.stage_id}: {stage_exec.status} ({stage_exec.duration:.2f}s)")
-            
-            # Print logs
-            if 'logs' in result.context:
-                print("\n" + "="*50)
-                print("EXECUTION LOGS")
-                print("="*50)
-                for log in result.context['logs']:
-                    print(log)
-            
-        except Exception as e:
-            print(f"Error: {e}")
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
-    
-    elif args.command == 'validate':
-        if not args.pipeline:
-            print("Error: --pipeline required for validate command")
-            sys.exit(1)
-        
-        try:
-            # Load pipeline
-            if args.pipeline.endswith('.yaml') or args.pipeline.endswith('.yml'):
-                pipeline = engine.load_from_yaml(args.pipeline)
-            else:
-                pipeline = engine.load_from_json(args.pipeline)
-            
-            # Validate
-            is_valid, error = engine.validate_pipeline(pipeline)
-            
-            if is_valid:
-                print(f"✓ Pipeline '{pipeline.name}' is valid")
-                print(f"  Stages: {len(pipeline.stages)}")
-            else:
-                print(f"✗ Pipeline validation failed: {error}")
-                sys.exit(1)
-                
-        except Exception as e:
-            print(f"Error: {e}")
-            sys.exit(1)
-    
-    elif args.command == 'list':
-        pipelines = engine.list_pipelines()
-        if not pipelines:
-            print("No pipelines loaded")
-        else:
-            print(f"Loaded pipelines: {len(pipelines)}")
-            for p in pipelines:
-                print(f"  - {p.name} (ID: {p.id}, Stages: {len(p.stages)})")
+        sys.exit(execute_pipeline(args.pipeline, args.verbose))
+    elif args.command == 'list-examples':
+        list_examples()
+    else:
+        parser.print_help()
 
 
 if __name__ == '__main__':

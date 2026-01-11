@@ -1,0 +1,40 @@
+name: customer-data-validation
+description: Validate and clean customer data from CSV source
+stages:
+  - id: input
+    name: Read Customer Data
+    type: input
+    config:
+      source: data/customers.csv
+      data:
+        - { id: 1, name: "John Doe", email: "john@example.com", age: 30 }
+        - { id: 2, name: "Jane Smith", email: "jane@example.com", age: 25 }
+        - { id: 3, name: "Bob Johnson", email: "bob@example.com", age: 35 }
+  
+  - id: validate
+    name: Validate Schema
+    type: validation
+    config:
+      schema:
+        id: integer
+        name: string
+        email: email
+        age: integer
+    dependencies:
+      - input
+  
+  - id: transform
+    name: Transform Data
+    type: transform
+    config:
+      operation: normalize
+    dependencies:
+      - validate
+  
+  - id: output
+    name: Write to Database
+    type: output
+    config:
+      destination: database.customers
+    dependencies:
+      - transform

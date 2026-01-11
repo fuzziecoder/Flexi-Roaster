@@ -1,222 +1,232 @@
 """
-Pipeline Executor - Executes pipeline stages sequentially
-Handles stage lifecycle, data passing, and error handling
+Pipeline Executor for FlexiRoaster.
+Handles the actual execution of pipeline stages with data passing and error handling.
 """
-import time
 import traceback
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Dict, Any, Optional
 
-from backend.models.pipeline import (
-    PipelineDefinition,
-    PipelineExecution,
-    StageExecution,
-    StageConfig,
-    PipelineStatus,
-    StageStatus
-)
-
-
-class StageHandler:
-    """Base class for stage handlers"""
-    
-    def execute(self, stage: StageConfig, context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Execute a stage
-        
-        Args:
-            stage: Stage configuration
-            context: Execution context (shared data)
-            
-        Returns:
-            Stage output data
-        """
-        raise NotImplementedError("Subclasses must implement execute()")
-
-
-class InputStageHandler(StageHandler):
-    """Handler for input stages"""
-    
-    def execute(self, stage: StageConfig, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Read input data"""
-        source = stage.config.get('source', 'stdin')
-        
-        # Simulate reading data
-        data = {
-            'source': source,
-            'records': [
-                {'id': 1, 'value': 'data1'},
-                {'id': 2, 'value': 'data2'},
-            ],
-            'count': 2
-        }
-        
-        return data
-
-
-class TransformStageHandler(StageHandler):
-    """Handler for transform stages"""
-    
-    def execute(self, stage: StageConfig, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform data"""
-        operation = stage.config.get('operation', 'passthrough')
-        
-        # Get input from previous stage
-        input_data = context.get('previous_output', {})
-        
-        # Simulate transformation
-        transformed = {
-            'operation': operation,
-            'input_count': input_data.get('count', 0),
-            'output_count': input_data.get('count', 0),
-            'transformed': True
-        }
-        
-        return transformed
-
-
-class OutputStageHandler(StageHandler):
-    """Handler for output stages"""
-    
-    def execute(self, stage: StageConfig, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Write output data"""
-        destination = stage.config.get('destination', 'stdout')
-        
-        # Get input from previous stage
-        input_data = context.get('previous_output', {})
-        
-        # Simulate writing data
-        result = {
-            'destination': destination,
-            'records_written': input_data.get('output_count', 0),
-            'success': True
-        }
-        
-        return result
+from backend.models.pipeline import Pipeline, Stage, Execution, ExecutionStatus, LogLevel, StageType
+from backend.core.pipeline_engine import PipelineEngine
 
 
 class PipelineExecutor:
-    """Executes pipelines stage by stage"""
+    """Executes pipeline stages sequentially with proper error handling"""
     
     def __init__(self):
-        # Register stage handlers
-        self.handlers: Dict[str, StageHandler] = {
-            'input': InputStageHandler(),
-            'transform': TransformStageHandler(),
-            'output': OutputStageHandler(),
-        }
+        self.engine = PipelineEngine()
     
-    def register_handler(self, stage_type: str, handler: StageHandler):
-        """Register a custom stage handler"""
-        self.handlers[stage_type] = handler
-    
-    def execute(self, pipeline: PipelineDefinition, execution: PipelineExecution) -> PipelineExecution:
+    def execute(self, pipeline: Pipeline) -> Execution:
         """
-        Execute a pipeline
+        Execute a complete pipeline.
         
         Args:
-            pipeline: Pipeline definition
-            execution: Execution instance
+            pipeline: Pipeline to execute
             
         Returns:
-            Updated execution with results
+            Execution object with results and logs
         """
+        # Validate pipeline first
+        is_valid, errors = self.engine.validate_pipeline(pipeline)
+        if not is_valid:
+            raise ValueError(f"Invalid pipeline: {', '.join(errors)}")
+        
+        # Create execution context
+        execution = self.engine.create_execution_context(pipeline)
+        execution.status = ExecutionStatus.RUNNING
+        execution.add_log(None, LogLevel.INFO, f"Starting pipeline execution: {pipeline.name}")
+        
         try:
-            execution.status = PipelineStatus.RUNNING
-            execution.started_at = datetime.utcnow()
+            # Get execution order (topological sort)
+            execution_order = self.engine.get_execution_order(pipeline)
+            execution.add_log(None, LogLevel.INFO, f"Execution order: {' -> '.join(execution_order)}")
             
             # Execute stages in order
-            for stage in pipeline.stages:
-                # Check dependencies
-                if not self._dependencies_met(stage, execution):
-                    self._log(execution, f"Skipping stage {stage.id} - dependencies not met")
-                    continue
+            for stage_id in execution_order:
+                stage = pipeline.get_stage(stage_id)
+                if not stage:
+                    raise ValueError(f"Stage not found: {stage_id}")
                 
                 # Execute stage
-                stage_execution = self._execute_stage(stage, execution)
-                execution.stage_executions.append(stage_execution)
-                
-                # Check if stage failed
-                if stage_execution.status == StageStatus.FAILED:
-                    execution.status = PipelineStatus.FAILED
-                    execution.error = f"Stage '{stage.id}' failed: {stage_execution.error}"
-                    break
-                
-                # Store output in context for next stage
-                if stage_execution.output:
-                    execution.context['previous_output'] = stage_execution.output
-                    execution.context[f'{stage.id}_output'] = stage_execution.output
+                self._execute_stage(stage, execution)
+                execution.stages_completed += 1
             
-            # Mark as completed if not failed
-            if execution.status == PipelineStatus.RUNNING:
-                execution.status = PipelineStatus.COMPLETED
-            
-            execution.completed_at = datetime.utcnow()
-            execution.duration = (execution.completed_at - execution.started_at).total_seconds()
+            # Mark as completed
+            execution.status = ExecutionStatus.COMPLETED
+            execution.completed_at = datetime.now()
+            execution.add_log(
+                None, 
+                LogLevel.INFO, 
+                f"Pipeline completed successfully in {execution.duration:.2f}s"
+            )
             
         except Exception as e:
-            execution.status = PipelineStatus.FAILED
-            execution.error = f"Pipeline execution failed: {str(e)}"
-            execution.completed_at = datetime.utcnow()
-            if execution.started_at:
-                execution.duration = (execution.completed_at - execution.started_at).total_seconds()
+            # Handle execution failure
+            execution.status = ExecutionStatus.FAILED
+            execution.completed_at = datetime.now()
+            execution.error = str(e)
+            execution.add_log(
+                None,
+                LogLevel.ERROR,
+                f"Pipeline execution failed: {str(e)}",
+                metadata={"traceback": traceback.format_exc()}
+            )
         
         return execution
     
-    def _execute_stage(self, stage: StageConfig, execution: PipelineExecution) -> StageExecution:
-        """Execute a single stage"""
-        stage_exec = StageExecution(
-            stage_id=stage.id,
-            status=StageStatus.RUNNING,
-            started_at=datetime.utcnow()
-        )
+    def _execute_stage(self, stage: Stage, execution: Execution) -> None:
+        """
+        Execute a single stage.
+        
+        Args:
+            stage: Stage to execute
+            execution: Current execution context
+        """
+        execution.add_log(stage.id, LogLevel.INFO, f"Starting stage: {stage.name}")
         
         try:
-            self._log(execution, f"Starting stage: {stage.name} ({stage.id})")
+            # Execute based on stage type
+            if stage.type == StageType.INPUT:
+                result = self._execute_input_stage(stage, execution)
+            elif stage.type == StageType.TRANSFORM:
+                result = self._execute_transform_stage(stage, execution)
+            elif stage.type == StageType.OUTPUT:
+                result = self._execute_output_stage(stage, execution)
+            elif stage.type == StageType.VALIDATION:
+                result = self._execute_validation_stage(stage, execution)
+            else:
+                raise ValueError(f"Unknown stage type: {stage.type}")
             
-            # Get handler for stage type
-            handler = self.handlers.get(stage.type)
-            if not handler:
-                raise ValueError(f"No handler registered for stage type: {stage.type}")
+            # Store result in context
+            execution.context[stage.id] = result
             
-            # Execute stage
-            output = handler.execute(stage, execution.context)
-            
-            stage_exec.status = StageStatus.COMPLETED
-            stage_exec.output = output
-            stage_exec.completed_at = datetime.utcnow()
-            stage_exec.duration = (stage_exec.completed_at - stage_exec.started_at).total_seconds()
-            
-            self._log(execution, f"Completed stage: {stage.name} in {stage_exec.duration:.2f}s")
+            execution.add_log(
+                stage.id,
+                LogLevel.INFO,
+                f"Stage completed successfully",
+                metadata={"result_keys": list(result.keys()) if isinstance(result, dict) else None}
+            )
             
         except Exception as e:
-            stage_exec.status = StageStatus.FAILED
-            stage_exec.error = str(e)
-            stage_exec.completed_at = datetime.utcnow()
-            stage_exec.duration = (stage_exec.completed_at - stage_exec.started_at).total_seconds()
-            
-            error_trace = traceback.format_exc()
-            self._log(execution, f"Stage failed: {stage.name}\nError: {str(e)}\n{error_trace}")
-        
-        return stage_exec
+            execution.add_log(
+                stage.id,
+                LogLevel.ERROR,
+                f"Stage failed: {str(e)}",
+                metadata={"traceback": traceback.format_exc()}
+            )
+            raise
     
-    def _dependencies_met(self, stage: StageConfig, execution: PipelineExecution) -> bool:
-        """Check if all stage dependencies are met"""
-        if not stage.dependencies:
-            return True
+    def _execute_input_stage(self, stage: Stage, execution: Execution) -> Dict[str, Any]:
+        """Execute an input stage (data loading)"""
+        execution.add_log(stage.id, LogLevel.DEBUG, f"Executing INPUT stage with config: {stage.config}")
         
-        completed_stages = {
-            se.stage_id for se in execution.stage_executions
-            if se.status == StageStatus.COMPLETED
+        # Simulate data loading
+        # In a real implementation, this would read from files, databases, APIs, etc.
+        source = stage.config.get('source', 'unknown')
+        
+        # Mock data for demonstration
+        data = {
+            'source': source,
+            'records': [],
+            'count': 0
         }
         
-        return all(dep in completed_stages for dep in stage.dependencies)
-    
-    def _log(self, execution: PipelineExecution, message: str):
-        """Add log message to execution context"""
-        if 'logs' not in execution.context:
-            execution.context['logs'] = []
+        # If source is a file path, we could read it here
+        if 'data' in stage.config:
+            data['records'] = stage.config['data']
+            data['count'] = len(stage.config['data'])
         
-        log_entry = f"[{datetime.utcnow().isoformat()}] {message}"
-        execution.context['logs'].append(log_entry)
-        print(log_entry)  # Also print to console
+        execution.add_log(stage.id, LogLevel.INFO, f"Loaded {data['count']} records from {source}")
+        
+        return data
+    
+    def _execute_transform_stage(self, stage: Stage, execution: Execution) -> Dict[str, Any]:
+        """Execute a transform stage (data processing)"""
+        execution.add_log(stage.id, LogLevel.DEBUG, f"Executing TRANSFORM stage with config: {stage.config}")
+        
+        # Get input data from dependencies
+        input_data = self._get_dependency_data(stage, execution)
+        
+        # Apply transformations
+        # In a real implementation, this would apply various transformations
+        operation = stage.config.get('operation', 'passthrough')
+        
+        result = {
+            'operation': operation,
+            'input_count': input_data.get('count', 0),
+            'output_count': input_data.get('count', 0),
+            'data': input_data.get('records', [])
+        }
+        
+        execution.add_log(
+            stage.id,
+            LogLevel.INFO,
+            f"Transformed {result['input_count']} records using {operation}"
+        )
+        
+        return result
+    
+    def _execute_validation_stage(self, stage: Stage, execution: Execution) -> Dict[str, Any]:
+        """Execute a validation stage (data validation)"""
+        execution.add_log(stage.id, LogLevel.DEBUG, f"Executing VALIDATION stage with config: {stage.config}")
+        
+        # Get input data from dependencies
+        input_data = self._get_dependency_data(stage, execution)
+        
+        # Validate data
+        schema = stage.config.get('schema', {})
+        records = input_data.get('data', [])
+        
+        valid_count = len(records)  # Simplified - assume all valid
+        invalid_count = 0
+        
+        result = {
+            'total': len(records),
+            'valid': valid_count,
+            'invalid': invalid_count,
+            'schema': schema
+        }
+        
+        execution.add_log(
+            stage.id,
+            LogLevel.INFO,
+            f"Validated {valid_count}/{len(records)} records"
+        )
+        
+        return result
+    
+    def _execute_output_stage(self, stage: Stage, execution: Execution) -> Dict[str, Any]:
+        """Execute an output stage (data writing)"""
+        execution.add_log(stage.id, LogLevel.DEBUG, f"Executing OUTPUT stage with config: {stage.config}")
+        
+        # Get input data from dependencies
+        input_data = self._get_dependency_data(stage, execution)
+        
+        # Write data
+        # In a real implementation, this would write to files, databases, APIs, etc.
+        destination = stage.config.get('destination', 'unknown')
+        records = input_data.get('data', [])
+        
+        result = {
+            'destination': destination,
+            'records_written': len(records),
+            'success': True
+        }
+        
+        execution.add_log(
+            stage.id,
+            LogLevel.INFO,
+            f"Wrote {len(records)} records to {destination}"
+        )
+        
+        return result
+    
+    def _get_dependency_data(self, stage: Stage, execution: Execution) -> Dict[str, Any]:
+        """Get combined data from all stage dependencies"""
+        if not stage.dependencies:
+            return {}
+        
+        # For simplicity, return data from the first dependency
+        # In a real implementation, you might merge data from multiple dependencies
+        first_dep = stage.dependencies[0]
+        return execution.context.get(first_dep, {})

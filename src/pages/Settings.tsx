@@ -1,151 +1,85 @@
-import { Settings as SettingsIcon, Database, Bell, Palette, Shield } from 'lucide-react';
+import { User, Bell, Shield, Database, Palette, Save } from 'lucide-react';
 
-export function SettingsPage() {
+export function Settings() {
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div>
-                <h1 className="text-2xl font-semibold text-white/90">Settings</h1>
-                <p className="text-sm text-white/50 mt-1">Configure your FlexiRoaster instance</p>
+                <h1 className="text-2xl font-bold text-white">Settings</h1>
+                <p className="text-gray-400 mt-1">Configure your dashboard preferences</p>
             </div>
 
-            {/* Settings Sections */}
-            <div className="grid grid-cols-1 gap-6">
-                {/* General Settings */}
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                    <div className="p-4 border-b border-white/10">
-                        <div className="flex items-center gap-2">
-                            <SettingsIcon size={18} className="text-white/70" />
-                            <h2 className="text-sm font-medium text-white/90">General</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Profile Settings */}
+                    <div className="card p-6">
+                        <div className="flex items-center gap-3 mb-6">
+                            <User className="w-5 h-5 text-gray-300" />
+                            <h2 className="text-lg font-semibold text-white">Profile</h2>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm text-gray-400 mb-1 block">Name</label>
+                                <input
+                                    type="text"
+                                    defaultValue="Administrator"
+                                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-gray-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm text-gray-400 mb-1 block">Email</label>
+                                <input
+                                    type="email"
+                                    defaultValue="admin@flexiroaster.io"
+                                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-gray-500 transition-colors"
+                                />
+                            </div>
                         </div>
                     </div>
-                    <div className="p-4 space-y-4">
-                        <div>
-                            <label className="block text-sm text-white/70 mb-2">Instance Name</label>
-                            <input
-                                type="text"
-                                defaultValue="FlexiRoaster Production"
-                                className="w-full px-3 py-2 bg-[hsl(var(--background))] border border-white/10 rounded text-white/90 focus:outline-none focus:border-white/30"
-                            />
+
+                    {/* Notification Settings */}
+                    <div className="card p-6">
+                        <div className="flex items-center gap-3 mb-6">
+                            <Bell className="w-5 h-5 text-gray-300" />
+                            <h2 className="text-lg font-semibold text-white">Notifications</h2>
                         </div>
-                        <div>
-                            <label className="block text-sm text-white/70 mb-2">API Endpoint</label>
-                            <input
-                                type="text"
-                                defaultValue="http://127.0.0.1:8000"
-                                className="w-full px-3 py-2 bg-[hsl(var(--background))] border border-white/10 rounded text-white/90 focus:outline-none focus:border-white/30"
-                            />
+                        <div className="space-y-4">
+                            {['Critical Alerts', 'Warning Alerts', 'Pipeline Completions', 'AI Insights'].map((item) => (
+                                <div key={item} className="flex items-center justify-between">
+                                    <span className="text-gray-300">{item}</span>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" defaultChecked className="sr-only peer" />
+                                        <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-gray-400 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-300 peer-checked:after:bg-gray-900"></div>
+                                    </label>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
 
-                {/* Database Settings */}
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                    <div className="p-4 border-b border-white/10">
-                        <div className="flex items-center gap-2">
-                            <Database size={18} className="text-white/70" />
-                            <h2 className="text-sm font-medium text-white/90">Database</h2>
+                {/* Quick Actions */}
+                <div className="space-y-4">
+                    {[
+                        { icon: Shield, label: 'Security', desc: 'Manage access controls' },
+                        { icon: Database, label: 'Data', desc: 'Configure connections' },
+                        { icon: Palette, label: 'Theme', desc: 'Customize appearance' },
+                    ].map((item) => (
+                        <div key={item.label} className="card p-4 hover:border-gray-600 cursor-pointer transition-colors">
+                            <div className="flex items-center gap-3">
+                                <item.icon className="w-5 h-5 text-gray-300" />
+                                <div>
+                                    <p className="font-medium text-white">{item.label}</p>
+                                    <p className="text-xs text-gray-400">{item.desc}</p>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div className="p-4 space-y-4">
-                        <div>
-                            <label className="block text-sm text-white/70 mb-2">Database Type</label>
-                            <select className="w-full px-3 py-2 bg-[hsl(var(--background))] border border-white/10 rounded text-white/90 focus:outline-none focus:border-white/30">
-                                <option>SQLite</option>
-                                <option>PostgreSQL</option>
-                                <option>MySQL</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm text-white/70 mb-2">Connection String</label>
-                            <input
-                                type="text"
-                                defaultValue="sqlite:///./flexiroaster.db"
-                                className="w-full px-3 py-2 bg-[hsl(var(--background))] border border-white/10 rounded text-white/90 focus:outline-none focus:border-white/30"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Notifications */}
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                    <div className="p-4 border-b border-white/10">
-                        <div className="flex items-center gap-2">
-                            <Bell size={18} className="text-white/70" />
-                            <h2 className="text-sm font-medium text-white/90">Notifications</h2>
-                        </div>
-                    </div>
-                    <div className="p-4 space-y-4">
-                        <label className="flex items-center gap-3">
-                            <input type="checkbox" defaultChecked className="w-4 h-4" />
-                            <span className="text-sm text-white/70">Email notifications</span>
-                        </label>
-                        <label className="flex items-center gap-3">
-                            <input type="checkbox" defaultChecked className="w-4 h-4" />
-                            <span className="text-sm text-white/70">Slack integration</span>
-                        </label>
-                        <label className="flex items-center gap-3">
-                            <input type="checkbox" className="w-4 h-4" />
-                            <span className="text-sm text-white/70">SMS alerts</span>
-                        </label>
-                    </div>
-                </div>
-
-                {/* Appearance */}
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                    <div className="p-4 border-b border-white/10">
-                        <div className="flex items-center gap-2">
-                            <Palette size={18} className="text-white/70" />
-                            <h2 className="text-sm font-medium text-white/90">Appearance</h2>
-                        </div>
-                    </div>
-                    <div className="p-4 space-y-4">
-                        <div>
-                            <label className="block text-sm text-white/70 mb-2">Theme</label>
-                            <select className="w-full px-3 py-2 bg-[hsl(var(--background))] border border-white/10 rounded text-white/90 focus:outline-none focus:border-white/30">
-                                <option>Muted Dark Grey (Current)</option>
-                                <option>Dark</option>
-                                <option>Light</option>
-                            </select>
-                        </div>
-                        <label className="flex items-center gap-3">
-                            <input type="checkbox" defaultChecked className="w-4 h-4" />
-                            <span className="text-sm text-white/70">Compact mode</span>
-                        </label>
-                    </div>
-                </div>
-
-                {/* Security */}
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                    <div className="p-4 border-b border-white/10">
-                        <div className="flex items-center gap-2">
-                            <Shield size={18} className="text-white/70" />
-                            <h2 className="text-sm font-medium text-white/90">Security</h2>
-                        </div>
-                    </div>
-                    <div className="p-4 space-y-4">
-                        <label className="flex items-center gap-3">
-                            <input type="checkbox" defaultChecked className="w-4 h-4" />
-                            <span className="text-sm text-white/70">Two-factor authentication</span>
-                        </label>
-                        <label className="flex items-center gap-3">
-                            <input type="checkbox" defaultChecked className="w-4 h-4" />
-                            <span className="text-sm text-white/70">API key rotation</span>
-                        </label>
-                        <label className="flex items-center gap-3">
-                            <input type="checkbox" className="w-4 h-4" />
-                            <span className="text-sm text-white/70">Audit logging</span>
-                        </label>
-                    </div>
+                    ))}
                 </div>
             </div>
 
-            {/* Save Button */}
-            <div className="flex justify-end">
-                <button className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white/90 rounded border border-white/20 transition-colors">
-                    Save Changes
-                </button>
-            </div>
+            <button className="btn btn-primary flex items-center gap-2">
+                <Save className="w-4 h-4" />
+                Save Changes
+            </button>
         </div>
     );
 }

@@ -2,33 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Muted Dark Grey Theme */
+/* Pure Black & Grey Monochrome Theme */
 :root {
-  --background: 0 0% 4%;
-  --foreground: 0 0% 90%;
-  --card: 0 0% 8%;
-  --card-foreground: 0 0% 90%;
-  --popover: 0 0% 6%;
-  --popover-foreground: 0 0% 90%;
-  --primary: 0 0% 70%;
-  --primary-foreground: 0 0% 4%;
-  --secondary: 0 0% 14%;
-  --secondary-foreground: 0 0% 90%;
-  --muted: 0 0% 16%;
-  --muted-foreground: 0 0% 55%;
-  --accent: 0 0% 14%;
-  --accent-foreground: 0 0% 90%;
+  --background: 0 0% 0%;
+  /* Pure black */
+  --foreground: 0 0% 98%;
+  /* Almost white */
+  --card: 0 0% 5%;
+  /* Very dark grey */
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 3%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 0 0% 90%;
+  /* Light grey */
+  --primary-foreground: 0 0% 10%;
+  /* Dark grey */
+  --secondary: 0 0% 12%;
+  /* Dark grey */
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 98%;
   --destructive: 0 0% 50%;
-  --destructive-foreground: 0 0% 90%;
-  --success: 0 0% 60%;
-  --success-foreground: 0 0% 4%;
-  --warning: 0 0% 55%;
-  --warning-foreground: 0 0% 4%;
-  --ai-accent: 0 0% 65%;
-  --border: 0 0% 16%;
+  /* Mid grey for errors */
+  --destructive-foreground: 0 0% 98%;
+  --success: 0 0% 70%;
+  /* Light grey for success */
+  --success-foreground: 0 0% 10%;
+  --warning: 0 0% 60%;
+  /* Mid grey for warnings */
+  --warning-foreground: 0 0% 10%;
+  --ai-accent: 0 0% 80%;
+  /* Very light grey */
+  --border: 0 0% 15%;
   --input: 0 0% 12%;
   --ring: 0 0% 50%;
   --radius: 0.5rem;
+
+  /* Surface colors */
+  --surface: 0 0% 7%;
+  --surface-elevated: 0 0% 10%;
+  --surface-hover: 0 0% 13%;
+
+  /* Text colors */
+  --text-primary: 0 0% 95%;
+  --text-secondary: 0 0% 70%;
+  --text-muted: 0 0% 50%;
 }
 
 * {
@@ -47,8 +67,8 @@ body {
 
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -57,24 +77,36 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--muted));
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
 }
 
-/* Remove glow effects */
-.glow-primary,
-.glow-success,
-.glow-warning,
-.glow-destructive,
-.glow-ai {
-  box-shadow: none;
+/* Subtle glow effects in grey */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
 }
 
-/* Simple animations */
-@keyframes pulse-subtle {
+.glow-success {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.08);
+}
+
+.glow-warning {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.06);
+}
+
+.glow-destructive {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+}
+
+.glow-ai {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.12);
+}
+
+/* Animations */
+@keyframes pulse-glow {
 
   0%,
   100% {
@@ -82,13 +114,13 @@ body {
   }
 
   50% {
-    opacity: 0.7;
+    opacity: 0.5;
   }
 }
 
 @keyframes slide-in {
   from {
-    transform: translateX(-5px);
+    transform: translateX(-10px);
     opacity: 0;
   }
 
@@ -109,18 +141,91 @@ body {
 }
 
 .animate-pulse-glow {
-  animation: pulse-subtle 2s ease-in-out infinite;
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .animate-slide-in {
-  animation: slide-in 0.2s ease-out;
+  animation: slide-in 0.3s ease-out;
 }
 
 .animate-fade-in {
-  animation: fade-in 0.2s ease-out;
+  animation: fade-in 0.3s ease-out;
 }
 
 /* Monospace for logs */
 .font-mono {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* Card styling */
+.card {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+/* Button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+.btn:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.btn-primary {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.btn-primary:hover {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
+.btn-secondary {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+
+.btn-secondary:hover {
+  background-color: hsl(var(--secondary) / 0.8);
+}
+
+.btn-ghost {
+  background-color: transparent;
+}
+
+.btn-ghost:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.btn-destructive {
+  background-color: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+}
+
+.btn-destructive:hover {
+  background-color: hsl(var(--destructive) / 0.9);
+}
+
+/* Zen Dots font class */
+.zen-dots {
+  font-family: 'Zen Dots', cursive;
 }

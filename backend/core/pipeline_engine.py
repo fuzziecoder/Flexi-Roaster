@@ -1,122 +1,209 @@
 """
-Pipeline Engine - Core execution logic
-Handles pipeline parsing, validation, and execution
+Pipeline Engine for FlexiRoaster.
+Handles pipeline definition parsing, validation, and execution context management.
 """
 import yaml
 import json
-from typing import Dict, Any, Optional
-from pathlib import Path
-from datetime import datetime
 import uuid
+from pathlib import Path
+from typing import Dict, Any, List
+from datetime import datetime
 
-from backend.models.pipeline import (
-    PipelineDefinition,
-    PipelineExecution,
-    PipelineStatus,
-    StageConfig
-)
+from backend.models.pipeline import Pipeline, Stage, StageType, Execution, ExecutionStatus, LogLevel
 
 
 class PipelineEngine:
-    """Core pipeline engine for parsing and managing pipelines"""
+    """Core engine for managing pipeline definitions"""
     
-    def __init__(self):
-        self.pipelines: Dict[str, PipelineDefinition] = {}
-    
-    def load_from_yaml(self, file_path: str) -> PipelineDefinition:
-        """Load pipeline definition from YAML file"""
+    @staticmethod
+    def parse_pipeline(file_path: str) -> Pipeline:
+        """
+        Parse a pipeline definition from YAML or JSON file.
+        
+        Args:
+            file_path: Path to the pipeline definition file
+            
+        Returns:
+            Pipeline object
+            
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+            ValueError: If the file format is invalid
+        """
         path = Path(file_path)
+        
         if not path.exists():
             raise FileNotFoundError(f"Pipeline file not found: {file_path}")
         
-        with open(path, 'r') as f:
-            data = yaml.safe_load(f)
+        # Read file content
+        content = path.read_text()
         
-        return self._parse_definition(data)
+        # Parse based on file extension
+        if path.suffix in ['.yaml', '.yml']:
+            data = yaml.safe_load(content)
+        elif path.suffix == '.json':
+            data = json.loads(content)
+        else:
+            raise ValueError(f"Unsupported file format: {path.suffix}. Use .yaml, .yml, or .json")
+        
+        return PipelineEngine._dict_to_pipeline(data)
     
-    def load_from_json(self, file_path: str) -> PipelineDefinition:
-        """Load pipeline definition from JSON file"""
-        path = Path(file_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Pipeline file not found: {file_path}")
+    @staticmethod
+    def _dict_to_pipeline(data: Dict[str, Any]) -> Pipeline:
+        """Convert dictionary to Pipeline object"""
+        # Validate required fields
+        required_fields = ['name', 'description', 'stages']
+        for field in required_fields:
+            if field not in data:
+                raise ValueError(f"Missing required field: {field}")
         
-        with open(path, 'r') as f:
-            data = json.load(f)
+        # Parse stages
+        stages = []
+        for stage_data in data['stages']:
+            stage = Stage(
+                id=stage_data.get('id', str(uuid.uuid4())),
+                name=stage_data['name'],
+                type=StageType(stage_data['type']),
+                config=stage_data.get('config', {}),
+                dependencies=stage_data.get('dependencies', [])
+            )
+            stages.append(stage)
         
-        return self._parse_definition(data)
-    
-    def load_from_dict(self, data: Dict[str, Any]) -> PipelineDefinition:
-        """Load pipeline definition from dictionary"""
-        return self._parse_definition(data)
-    
-    def _parse_definition(self, data: Dict[str, Any]) -> PipelineDefinition:
-        """Parse and validate pipeline definition"""
-        # Generate ID if not provided
-        if 'id' not in data or not data['id']:
-            data['id'] = f"pipe-{uuid.uuid4().hex[:8]}"
-        
-        # Validate and create pipeline definition
-        pipeline = PipelineDefinition(**data)
-        
-        # Validate stage dependencies
-        self._validate_dependencies(pipeline)
-        
-        # Store pipeline
-        self.pipelines[pipeline.id] = pipeline
+        # Create pipeline
+        pipeline = Pipeline(
+            id=data.get('id', str(uuid.uuid4())),
+            name=data['name'],
+            description=data['description'],
+            stages=stages
+        )
         
         return pipeline
     
-    def _validate_dependencies(self, pipeline: PipelineDefinition):
-        """Validate that all stage dependencies exist"""
-        stage_ids = {stage.id for stage in pipeline.stages}
+    @staticmethod
+    def validate_pipeline(pipeline: Pipeline) -> tuple[bool, List[str]]:
+        """
+        Validate a pipeline definition.
         
+        Args:
+            pipeline: Pipeline object to validate
+            
+        Returns:
+            Tuple of (is_valid, list_of_errors)
+        """
+        errors = []
+        
+        # Check if pipeline has at least one stage
+        if not pipeline.stages:
+            errors.append("Pipeline must have at least one stage")
+        
+        # Check for duplicate stage IDs
+        stage_ids = [stage.id for stage in pipeline.stages]
+        if len(stage_ids) != len(set(stage_ids)):
+            errors.append("Duplicate stage IDs found")
+        
+        # Validate stage dependencies
         for stage in pipeline.stages:
-            for dep in stage.dependencies:
-                if dep not in stage_ids:
-                    raise ValueError(
-                        f"Stage '{stage.id}' has invalid dependency '{dep}'"
-                    )
-    
-    def get_pipeline(self, pipeline_id: str) -> Optional[PipelineDefinition]:
-        """Get pipeline by ID"""
-        return self.pipelines.get(pipeline_id)
-    
-    def list_pipelines(self) -> list[PipelineDefinition]:
-        """List all loaded pipelines"""
-        return list(self.pipelines.values())
-    
-    def create_execution(self, pipeline_id: str) -> PipelineExecution:
-        """Create a new execution instance for a pipeline"""
-        pipeline = self.get_pipeline(pipeline_id)
-        if not pipeline:
-            raise ValueError(f"Pipeline not found: {pipeline_id}")
+            for dep_id in stage.dependencies:
+                if dep_id not in stage_ids:
+                    errors.append(f"Stage '{stage.id}' has invalid dependency: '{dep_id}'")
         
-        execution = PipelineExecution(
-            id=f"exec-{uuid.uuid4().hex[:8]}",
+        # Check for circular dependencies
+        if PipelineEngine._has_circular_dependencies(pipeline):
+            errors.append("Circular dependencies detected in pipeline")
+        
+        return (len(errors) == 0, errors)
+    
+    @staticmethod
+    def _has_circular_dependencies(pipeline: Pipeline) -> bool:
+        """Check if pipeline has circular dependencies using DFS"""
+        # Build adjacency list
+        graph = {stage.id: stage.dependencies for stage in pipeline.stages}
+        
+        visited = set()
+        rec_stack = set()
+        
+        def dfs(node: str) -> bool:
+            visited.add(node)
+            rec_stack.add(node)
+            
+            for neighbor in graph.get(node, []):
+                if neighbor not in visited:
+                    if dfs(neighbor):
+                        return True
+                elif neighbor in rec_stack:
+                    return True
+            
+            rec_stack.remove(node)
+            return False
+        
+        for stage_id in graph:
+            if stage_id not in visited:
+                if dfs(stage_id):
+                    return True
+        
+        return False
+    
+    @staticmethod
+    def create_execution_context(pipeline: Pipeline) -> Execution:
+        """
+        Create a new execution context for a pipeline.
+        
+        Args:
+            pipeline: Pipeline to execute
+            
+        Returns:
+            Execution object
+        """
+        execution = Execution(
+            id=f"exec-{uuid.uuid4()}",
             pipeline_id=pipeline.id,
-            pipeline_name=pipeline.name,
-            status=PipelineStatus.PENDING,
-            started_at=datetime.utcnow(),
-            context=pipeline.variables.copy()  # Initialize with pipeline variables
+            status=ExecutionStatus.PENDING,
+            started_at=datetime.now(),
+            total_stages=len(pipeline.stages)
+        )
+        
+        execution.add_log(
+            stage_id=None,
+            level=LogLevel.INFO,
+            message=f"Created execution context for pipeline: {pipeline.name}"
         )
         
         return execution
     
-    def validate_pipeline(self, pipeline: PipelineDefinition) -> tuple[bool, Optional[str]]:
-        """Validate pipeline definition"""
-        try:
-            # Check for at least one stage
-            if not pipeline.stages:
-                return False, "Pipeline must have at least one stage"
+    @staticmethod
+    def get_execution_order(pipeline: Pipeline) -> List[str]:
+        """
+        Get the execution order of stages based on dependencies.
+        Uses topological sort.
+        
+        Args:
+            pipeline: Pipeline object
             
-            # Check for duplicate stage IDs
-            stage_ids = [stage.id for stage in pipeline.stages]
-            if len(stage_ids) != len(set(stage_ids)):
-                return False, "Duplicate stage IDs found"
+        Returns:
+            List of stage IDs in execution order
+        """
+        # Build adjacency list and in-degree count
+        graph = {stage.id: stage.dependencies for stage in pipeline.stages}
+        in_degree = {stage.id: 0 for stage in pipeline.stages}
+        
+        for stage in pipeline.stages:
+            for dep in stage.dependencies:
+                in_degree[stage.id] += 1
+        
+        # Find all stages with no dependencies
+        queue = [stage_id for stage_id, degree in in_degree.items() if degree == 0]
+        result = []
+        
+        while queue:
+            # Get stage with no dependencies
+            current = queue.pop(0)
+            result.append(current)
             
-            # Validate dependencies
-            self._validate_dependencies(pipeline)
-            
-            return True, None
-        except Exception as e:
-            return False, str(e)
+            # Reduce in-degree for dependent stages
+            for stage in pipeline.stages:
+                if current in stage.dependencies:
+                    in_degree[stage.id] -= 1
+                    if in_degree[stage.id] == 0:
+                        queue.append(stage.id)
+        
+        return result

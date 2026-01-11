@@ -1,101 +1,119 @@
 """
-FlexiRoaster Pipeline Models
-Pydantic models for pipeline definition and execution
+Pipeline data models for FlexiRoaster.
+Defines the core data structures for pipelines, stages, and executions.
 """
-from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import List, Dict, Any, Optional
 from enum import Enum
-from pydantic import BaseModel, Field
 
 
-class PipelineStatus(str, Enum):
-    """Pipeline execution status"""
+class StageType(str, Enum):
+    """Types of pipeline stages"""
+    INPUT = "input"
+    TRANSFORM = "transform"
+    OUTPUT = "output"
+    VALIDATION = "validation"
+
+
+class ExecutionStatus(str, Enum):
+    """Execution status states"""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
-    PAUSED = "paused"
+    CANCELLED = "cancelled"
 
 
-class StageStatus(str, Enum):
-    """Stage execution status"""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
+class LogLevel(str, Enum):
+    """Log levels"""
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARN = "WARN"
+    ERROR = "ERROR"
 
 
-class StageConfig(BaseModel):
-    """Configuration for a pipeline stage"""
+@dataclass
+class Stage:
+    """Represents a single stage in a pipeline"""
     id: str
     name: str
-    type: str  # e.g., "input", "transform", "output"
-    config: Dict[str, Any] = Field(default_factory=dict)
-    dependencies: List[str] = Field(default_factory=list)
-    timeout: Optional[int] = 300  # seconds
-    retry_count: int = 0
+    type: StageType
+    config: Dict[str, Any]
+    dependencies: List[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        if isinstance(self.type, str):
+            self.type = StageType(self.type)
 
 
-class PipelineDefinition(BaseModel):
-    """Pipeline definition from YAML/JSON"""
-    id: Optional[str] = None
+@dataclass
+class Pipeline:
+    """Represents a complete pipeline definition"""
+    id: str
     name: str
     description: str
-    version: str = "1.0"
-    stages: List[StageConfig]
-    variables: Dict[str, Any] = Field(default_factory=dict)
+    stages: List[Stage]
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "Data Processing Pipeline",
-                "description": "Process customer data",
-                "version": "1.0",
-                "stages": [
-                    {
-                        "id": "input",
-                        "name": "Read Data",
-                        "type": "input",
-                        "config": {"source": "data.csv"}
-                    }
-                ]
-            }
-        }
+    def get_stage(self, stage_id: str) -> Optional[Stage]:
+        """Get a stage by ID"""
+        for stage in self.stages:
+            if stage.id == stage_id:
+                return stage
+        return None
 
 
-class StageExecution(BaseModel):
-    """Stage execution result"""
-    stage_id: str
-    status: StageStatus
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    duration: Optional[float] = None  # seconds
-    output: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    logs: List[str] = Field(default_factory=list)
+@dataclass
+class LogEntry:
+    """Represents a single log entry"""
+    id: str
+    execution_id: str
+    stage_id: Optional[str]
+    level: LogLevel
+    message: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if isinstance(self.level, str):
+            self.level = LogLevel(self.level)
 
 
-class PipelineExecution(BaseModel):
-    """Pipeline execution state"""
+@dataclass
+class Execution:
+    """Represents a pipeline execution instance"""
     id: str
     pipeline_id: str
-    pipeline_name: str
-    status: PipelineStatus
+    status: ExecutionStatus
     started_at: datetime
     completed_at: Optional[datetime] = None
-    duration: Optional[float] = None
-    stage_executions: List[StageExecution] = Field(default_factory=list)
-    context: Dict[str, Any] = Field(default_factory=dict)  # Shared data between stages
     error: Optional[str] = None
+    logs: List[LogEntry] = field(default_factory=list)
+    context: Dict[str, Any] = field(default_factory=dict)
+    stages_completed: int = 0
+    total_stages: int = 0
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "exec-123",
-                "pipeline_id": "pipe-456",
-                "pipeline_name": "Data Pipeline",
-                "status": "running",
-                "started_at": "2024-01-10T10:00:00Z"
-            }
-        }
+    def __post_init__(self):
+        if isinstance(self.status, str):
+            self.status = ExecutionStatus(self.status)
+    
+    def add_log(self, stage_id: Optional[str], level: LogLevel, message: str, metadata: Dict[str, Any] = None):
+        """Add a log entry to this execution"""
+        log_entry = LogEntry(
+            id=f"{self.id}-log-{len(self.logs)}",
+            execution_id=self.id,
+            stage_id=stage_id,
+            level=level,
+            message=message,
+            metadata=metadata or {}
+        )
+        self.logs.append(log_entry)
+    
+    @property
+    def duration(self) -> Optional[float]:
+        """Calculate execution duration in seconds"""
+        if self.completed_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        return None

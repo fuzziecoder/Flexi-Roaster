@@ -1,135 +1,205 @@
 """
-Updated Pipeline API Routes with Database Integration
+Pipeline management API routes.
+Handles CRUD operations for pipelines.
 """
+from fastapi import APIRouter, HTTPException, status
 from typing import List
-from fastapi import APIRouter, HTTPException, status, Depends
-from sqlalchemy.orm import Session
+import uuid
+from datetime import datetime
 
 from backend.api.schemas import (
     PipelineCreate,
     PipelineUpdate,
     PipelineResponse,
-    MessageResponse
+    PipelineListResponse,
+    SuccessResponse,
+    ErrorResponse,
+    StageResponse
 )
+from backend.models.pipeline import Pipeline, Stage, StageType
 from backend.core.pipeline_engine import PipelineEngine
-from backend.db.database import get_db
-from backend.db import crud
 
-router = APIRouter(prefix="/api/pipelines", tags=["pipelines"])
+router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
-# Global pipeline engine instance
-engine = PipelineEngine()
+# In-memory storage (will be replaced with database in Phase 3)
+pipelines_db: Dict[str, Pipeline] = {}
 
 
-@router.post("", response_model=PipelineResponse, status_code=status.HTTP_201_CREATED)
-async def create_pipeline(pipeline_data: PipelineCreate, db: Session = Depends(get_db)):
-    """Create a new pipeline"""
+@router.post(
+    "",
+    response_model=PipelineResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new pipeline"
+)
+async def create_pipeline(pipeline_data: PipelineCreate):
+    """
+    Create a new pipeline with stages.
+    
+    - **name**: Pipeline name
+    - **description**: Pipeline description
+    - **stages**: List of pipeline stages
+    """
     try:
-        # Convert to dict and load into engine
-        data = pipeline_data.model_dump()
-        pipeline = engine.load_from_dict(data)
+        # Create stages
+        stages = []
+        for stage_data in pipeline_data.stages:
+            stage = Stage(
+                id=stage_data.id or str(uuid.uuid4()),
+                name=stage_data.name,
+                type=StageType(stage_data.type.value),
+                config=stage_data.config,
+                dependencies=stage_data.dependencies
+            )
+            stages.append(stage)
         
-        # Save to database
-        db_pipeline = crud.create_pipeline(db, pipeline)
-        
-        return PipelineResponse(
-            id=db_pipeline.id,
-            name=db_pipeline.name,
-            description=db_pipeline.description,
-            version=db_pipeline.version,
-            stages=db_pipeline.definition.get("stages", []),
-            variables=db_pipeline.definition.get("variables", {}),
-            created_at=db_pipeline.created_at,
-            updated_at=db_pipeline.updated_at
+        # Create pipeline
+        pipeline = Pipeline(
+            id=str(uuid.uuid4()),
+            name=pipeline_data.name,
+            description=pipeline_data.description,
+            stages=stages,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
         )
-    except Exception as e:
+        
+        # Validate pipeline
+        engine = PipelineEngine()
+        is_valid, errors = engine.validate_pipeline(pipeline)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid pipeline: {', '.join(errors)}"
+            )
+        
+        # Store pipeline
+        pipelines_db[pipeline.id] = pipeline
+        
+        return pipeline
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to create pipeline: {str(e)}"
+            detail=str(e)
         )
 
 
-@router.get("", response_model=List[PipelineResponse])
-async def list_pipelines(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """List all pipelines"""
-    db_pipelines = crud.get_pipelines(db, skip=skip, limit=limit)
+@router.get(
+    "",
+    response_model=PipelineListResponse,
+    summary="List all pipelines"
+)
+async def list_pipelines(skip: int = 0, limit: int = 100):
+    """
+    Get a list of all pipelines.
     
-    # Also load into engine
-    for db_pipeline in db_pipelines:
-        if db_pipeline.id not in engine.pipelines:
-            data = {
-                "id": db_pipeline.id,
-                "name": db_pipeline.name,
-                "description": db_pipeline.description,
-                "version": db_pipeline.version,
-                "stages": db_pipeline.definition.get("stages", []),
-                "variables": db_pipeline.definition.get("variables", {})
-            }
-            engine.load_from_dict(data)
+    - **skip**: Number of pipelines to skip (pagination)
+    - **limit**: Maximum number of pipelines to return
+    """
+    all_pipelines = list(pipelines_db.values())
+    total = len(all_pipelines)
+    pipelines = all_pipelines[skip : skip + limit]
     
-    return [
-        PipelineResponse(
-            id=p.id,
-            name=p.name,
-            description=p.description,
-            version=p.version,
-            stages=p.definition.get("stages", []),
-            variables=p.definition.get("variables", {}),
-            created_at=p.created_at,
-            updated_at=p.updated_at
-        )
-        for p in db_pipelines
-    ]
-
-
-@router.get("/{pipeline_id}", response_model=PipelineResponse)
-async def get_pipeline(pipeline_id: str, db: Session = Depends(get_db)):
-    """Get a specific pipeline"""
-    db_pipeline = crud.get_pipeline(db, pipeline_id)
-    
-    if not db_pipeline:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Pipeline not found: {pipeline_id}"
-        )
-    
-    # Load into engine if not already loaded
-    if pipeline_id not in engine.pipelines:
-        data = {
-            "id": db_pipeline.id,
-            "name": db_pipeline.name,
-            "description": db_pipeline.description,
-            "version": db_pipeline.version,
-            "stages": db_pipeline.definition.get("stages", []),
-            "variables": db_pipeline.definition.get("variables", {})
-        }
-        engine.load_from_dict(data)
-    
-    return PipelineResponse(
-        id=db_pipeline.id,
-        name=db_pipeline.name,
-        description=db_pipeline.description,
-        version=db_pipeline.version,
-        stages=db_pipeline.definition.get("stages", []),
-        variables=db_pipeline.definition.get("variables", {}),
-        created_at=db_pipeline.created_at,
-        updated_at=db_pipeline.updated_at
+    return PipelineListResponse(
+        pipelines=pipelines,
+        total=total
     )
 
 
-@router.delete("/{pipeline_id}", response_model=MessageResponse)
-async def delete_pipeline(pipeline_id: str, db: Session = Depends(get_db)):
-    """Delete a pipeline"""
-    success = crud.delete_pipeline(db, pipeline_id)
+@router.get(
+    "/{pipeline_id}",
+    response_model=PipelineResponse,
+    summary="Get pipeline details"
+)
+async def get_pipeline(pipeline_id: str):
+    """
+    Get details of a specific pipeline.
     
-    if not success:
+    - **pipeline_id**: Unique pipeline identifier
+    """
+    if pipeline_id not in pipelines_db:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pipeline not found: {pipeline_id}"
         )
     
-    # Remove from engine
-    if pipeline_id in engine.pipelines:
-        del engine.pipelines[pipeline_id]
+    return pipelines_db[pipeline_id]
+
+
+@router.put(
+    "/{pipeline_id}",
+    response_model=PipelineResponse,
+    summary="Update a pipeline"
+)
+async def update_pipeline(pipeline_id: str, pipeline_data: PipelineUpdate):
+    """
+    Update an existing pipeline.
     
-    return MessageResponse(message=f"Pipeline {pipeline_id} deleted successfully")
+    - **pipeline_id**: Unique pipeline identifier
+    - **name**: New pipeline name (optional)
+    - **description**: New pipeline description (optional)
+    - **stages**: New stages list (optional)
+    """
+    if pipeline_id not in pipelines_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pipeline not found: {pipeline_id}"
+        )
+    
+    pipeline = pipelines_db[pipeline_id]
+    
+    # Update fields
+    if pipeline_data.name is not None:
+        pipeline.name = pipeline_data.name
+    if pipeline_data.description is not None:
+        pipeline.description = pipeline_data.description
+    if pipeline_data.stages is not None:
+        stages = []
+        for stage_data in pipeline_data.stages:
+            stage = Stage(
+                id=stage_data.id or str(uuid.uuid4()),
+                name=stage_data.name,
+                type=StageType(stage_data.type.value),
+                config=stage_data.config,
+                dependencies=stage_data.dependencies
+            )
+            stages.append(stage)
+        pipeline.stages = stages
+    
+    pipeline.updated_at = datetime.now()
+    
+    # Validate updated pipeline
+    engine = PipelineEngine()
+    is_valid, errors = engine.validate_pipeline(pipeline)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid pipeline: {', '.join(errors)}"
+        )
+    
+    pipelines_db[pipeline_id] = pipeline
+    
+    return pipeline
+
+
+@router.delete(
+    "/{pipeline_id}",
+    response_model=SuccessResponse,
+    summary="Delete a pipeline"
+)
+async def delete_pipeline(pipeline_id: str):
+    """
+    Delete a pipeline.
+    
+    - **pipeline_id**: Unique pipeline identifier
+    """
+    if pipeline_id not in pipelines_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pipeline not found: {pipeline_id}"
+        )
+    
+    del pipelines_db[pipeline_id]
+    
+    return SuccessResponse(
+        message=f"Pipeline {pipeline_id} deleted successfully"
+    )

@@ -1,207 +1,202 @@
 """
-Updated Execution API Routes with Database Integration
+Execution management API routes.
+Handles pipeline execution and execution monitoring.
 """
-from typing import List
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, status, BackgroundTasks
+from typing import Dict
+import uuid
 
 from backend.api.schemas import (
     ExecutionCreate,
     ExecutionResponse,
-    ExecutionLogsResponse,
-    StageExecutionResponse
+    ExecutionDetailResponse,
+    ExecutionListResponse,
+    SuccessResponse
 )
-from backend.core.pipeline_engine import PipelineEngine
+from backend.models.pipeline import Execution, ExecutionStatus
 from backend.core.executor import PipelineExecutor
-from backend.db.database import get_db
-from backend.db import crud
 
-router = APIRouter(prefix="/api/executions", tags=["executions"])
+router = APIRouter(prefix="/executions", tags=["executions"])
 
-# Global instances
-engine = PipelineEngine()
-executor = PipelineExecutor()
+# In-memory storage (will be replaced with database in Phase 3)
+executions_db: Dict[str, Execution] = {}
+
+# Import pipelines_db from pipelines route
+from backend.api.routes.pipelines import pipelines_db
 
 
-def run_pipeline_execution(execution_id: str):
-    """Background task to run pipeline execution"""
-    from backend.db.database import SessionLocal
-    db = SessionLocal()
-    
+async def execute_pipeline_background(pipeline_id: str, execution_id: str):
+    """Background task to execute pipeline"""
     try:
-        db_execution = crud.get_execution(db, execution_id)
-        if not db_execution:
-            return
-        
-        # Load pipeline into engine if not already loaded
-        db_pipeline = crud.get_pipeline(db, db_execution.pipeline_id)
-        if not db_pipeline:
-            return
-        
-        if db_execution.pipeline_id not in engine.pipelines:
-            data = {
-                "id": db_pipeline.id,
-                "name": db_pipeline.name,
-                "description": db_pipeline.description,
-                "version": db_pipeline.version,
-                "stages": db_pipeline.definition.get("stages", []),
-                "variables": db_pipeline.definition.get("variables", {})
-            }
-            pipeline = engine.load_from_dict(data)
-        else:
-            pipeline = engine.get_pipeline(db_execution.pipeline_id)
-        
-        # Create execution object
-        execution = engine.create_execution(db_execution.pipeline_id)
-        execution.id = db_execution.id
-        execution.context = db_execution.context
-        
-        # Execute pipeline
-        result = executor.execute(pipeline, execution)
-        
-        # Update database
-        crud.update_execution(db, result)
-        
-        # Save stage executions
-        for stage_exec in result.stage_executions:
-            crud.create_stage_execution(db, result.id, stage_exec)
-        
-        # Save logs
-        for log in result.context.get('logs', []):
-            crud.create_log(db, result.id, "info", log)
-            
-    finally:
-        db.close()
+        pipeline = pipelines_db[pipeline_id]
+        executor = PipelineExecutor()
+        execution = executor.execute(pipeline)
+        execution.id = execution_id  # Use the pre-assigned ID
+        executions_db[execution_id] = execution
+    except Exception as e:
+        # Update execution with error
+        if execution_id in executions_db:
+            executions_db[execution_id].status = ExecutionStatus.FAILED
+            executions_db[execution_id].error = str(e)
 
 
-@router.post("", response_model=ExecutionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ExecutionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Start pipeline execution"
+)
 async def create_execution(
     execution_data: ExecutionCreate,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    background_tasks: BackgroundTasks
 ):
-    """Start a new pipeline execution"""
-    # Check if pipeline exists
-    db_pipeline = crud.get_pipeline(db, execution_data.pipeline_id)
-    if not db_pipeline:
+    """
+    Start a new pipeline execution.
+    
+    - **pipeline_id**: ID of the pipeline to execute
+    
+    Returns execution ID immediately and runs pipeline in background.
+    """
+    if execution_data.pipeline_id not in pipelines_db:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pipeline not found: {execution_data.pipeline_id}"
         )
     
-    # Load pipeline into engine
-    if execution_data.pipeline_id not in engine.pipelines:
-        data = {
-            "id": db_pipeline.id,
-            "name": db_pipeline.name,
-            "description": db_pipeline.description,
-            "version": db_pipeline.version,
-            "stages": db_pipeline.definition.get("stages", []),
-            "variables": db_pipeline.definition.get("variables", {})
-        }
-        engine.load_from_dict(data)
+    # Create execution record
+    execution_id = f"exec-{uuid.uuid4()}"
+    pipeline = pipelines_db[execution_data.pipeline_id]
     
-    # Create execution
-    execution = engine.create_execution(execution_data.pipeline_id)
+    from datetime import datetime
+    execution = Execution(
+        id=execution_id,
+        pipeline_id=execution_data.pipeline_id,
+        status=ExecutionStatus.PENDING,
+        started_at=datetime.now(),
+        total_stages=len(pipeline.stages)
+    )
     
-    # Merge custom variables
-    if execution_data.variables:
-        execution.context.update(execution_data.variables)
+    executions_db[execution_id] = execution
     
-    # Save to database
-    db_execution = crud.create_execution(db, execution)
+    # Start execution in background
+    background_tasks.add_task(
+        execute_pipeline_background,
+        execution_data.pipeline_id,
+        execution_id
+    )
     
-    # Run in background
-    background_tasks.add_task(run_pipeline_execution, execution.id)
+    return execution
+
+
+@router.get(
+    "",
+    response_model=ExecutionListResponse,
+    summary="List all executions"
+)
+async def list_executions(
+    pipeline_id: str = None,
+    status: str = None,
+    skip: int = 0,
+    limit: int = 100
+):
+    """
+    Get a list of all executions.
     
-    return ExecutionResponse(
-        id=db_execution.id,
-        pipeline_id=db_execution.pipeline_id,
-        pipeline_name=db_execution.pipeline_name,
-        status=db_execution.status,
-        started_at=db_execution.started_at,
-        completed_at=db_execution.completed_at,
-        duration=db_execution.duration,
-        stage_executions=[],
-        error=db_execution.error
+    - **pipeline_id**: Filter by pipeline ID (optional)
+    - **status**: Filter by status (optional)
+    - **skip**: Number of executions to skip (pagination)
+    - **limit**: Maximum number of executions to return
+    """
+    all_executions = list(executions_db.values())
+    
+    # Apply filters
+    if pipeline_id:
+        all_executions = [e for e in all_executions if e.pipeline_id == pipeline_id]
+    if status:
+        all_executions = [e for e in all_executions if e.status.value == status]
+    
+    # Sort by started_at descending
+    all_executions.sort(key=lambda x: x.started_at, reverse=True)
+    
+    total = len(all_executions)
+    executions = all_executions[skip : skip + limit]
+    
+    return ExecutionListResponse(
+        executions=executions,
+        total=total
     )
 
 
-@router.get("", response_model=List[ExecutionResponse])
-async def list_executions(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    """List all executions"""
-    db_executions = crud.get_executions(db, skip=skip, limit=limit)
+@router.get(
+    "/{execution_id}",
+    response_model=ExecutionDetailResponse,
+    summary="Get execution details"
+)
+async def get_execution(execution_id: str):
+    """
+    Get details of a specific execution including logs.
     
-    return [
-        ExecutionResponse(
-            id=e.id,
-            pipeline_id=e.pipeline_id,
-            pipeline_name=e.pipeline_name,
-            status=e.status,
-            started_at=e.started_at,
-            completed_at=e.completed_at,
-            duration=e.duration,
-            stage_executions=[
-                StageExecutionResponse(
-                    stage_id=se.stage_id,
-                    status=se.status,
-                    started_at=se.started_at,
-                    completed_at=se.completed_at,
-                    duration=se.duration,
-                    output=se.output,
-                    error=se.error
-                )
-                for se in e.stage_executions
-            ],
-            error=e.error
-        )
-        for e in db_executions
-    ]
-
-
-@router.get("/{execution_id}", response_model=ExecutionResponse)
-async def get_execution(execution_id: str, db: Session = Depends(get_db)):
-    """Get execution status and details"""
-    db_execution = crud.get_execution(db, execution_id)
-    
-    if not db_execution:
+    - **execution_id**: Unique execution identifier
+    """
+    if execution_id not in executions_db:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Execution not found: {execution_id}"
         )
     
-    return ExecutionResponse(
-        id=db_execution.id,
-        pipeline_id=db_execution.pipeline_id,
-        pipeline_name=db_execution.pipeline_name,
-        status=db_execution.status,
-        started_at=db_execution.started_at,
-        completed_at=db_execution.completed_at,
-        duration=db_execution.duration,
-        stage_executions=[
-            StageExecutionResponse(
-                stage_id=se.stage_id,
-                status=se.status,
-                started_at=se.started_at,
-                completed_at=se.completed_at,
-                duration=se.duration,
-                output=se.output,
-                error=se.error
-            )
-            for se in db_execution.stage_executions
-        ],
-        error=db_execution.error
-    )
+    return executions_db[execution_id]
 
 
-@router.get("/{execution_id}/logs", response_model=ExecutionLogsResponse)
-async def get_execution_logs(execution_id: str, db: Session = Depends(get_db)):
-    """Get execution logs"""
-    db_logs = crud.get_execution_logs(db, execution_id)
+@router.get(
+    "/{execution_id}/logs",
+    response_model=List,
+    summary="Get execution logs"
+)
+async def get_execution_logs(execution_id: str):
+    """
+    Get logs for a specific execution.
     
-    logs = [f"[{log.timestamp.isoformat()}] [{log.level.upper()}] {log.message}" for log in db_logs]
+    - **execution_id**: Unique execution identifier
+    """
+    if execution_id not in executions_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Execution not found: {execution_id}"
+        )
     
-    return ExecutionLogsResponse(
-        execution_id=execution_id,
-        logs=logs
+    execution = executions_db[execution_id]
+    return execution.logs
+
+
+@router.delete(
+    "/{execution_id}",
+    response_model=SuccessResponse,
+    summary="Cancel execution"
+)
+async def cancel_execution(execution_id: str):
+    """
+    Cancel a running execution.
+    
+    - **execution_id**: Unique execution identifier
+    """
+    if execution_id not in executions_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Execution not found: {execution_id}"
+        )
+    
+    execution = executions_db[execution_id]
+    
+    if execution.status not in [ExecutionStatus.PENDING, ExecutionStatus.RUNNING]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel execution with status: {execution.status.value}"
+        )
+    
+    execution.status = ExecutionStatus.CANCELLED
+    from datetime import datetime
+    execution.completed_at = datetime.now()
+    
+    return SuccessResponse(
+        message=f"Execution {execution_id} cancelled successfully"
     )

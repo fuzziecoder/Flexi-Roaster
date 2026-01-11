@@ -1,1 +1,1 @@
-# Empty __init__.py
+"""Routes package initialization"""

@@ -1,7 +1,7 @@
 export { Dashboard } from './Dashboard';
-export { PipelinesPage } from './Pipelines';
-export { ExecutionsPage } from './Executions';
-export { AIInsightsPage } from './AIInsights';
-export { LogsPage } from './Logs';
-export { AlertsPage } from './Alerts';
-export { SettingsPage } from './Settings';
+export { Pipelines } from './Pipelines';
+export { Executions } from './Executions';
+export { AIInsights } from './AIInsights';
+export { Logs } from './Logs';
+export { Alerts } from './Alerts';
+export { Settings } from './Settings';

@@ -1,15 +1,13 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DashboardLayout } from './components/layout';
-import {
-  Dashboard,
-  PipelinesPage,
-  ExecutionsPage,
-  AIInsightsPage,
-  LogsPage,
-  AlertsPage,
-  SettingsPage,
-} from './pages';
+import { Dashboard } from './pages/Dashboard';
+import { PipelinesPage } from './pages/Pipelines';
+import { ExecutionsPage } from './pages/Executions';
+import { AIInsightsPage } from './pages/AIInsights';
+import { LogsPage } from './pages/Logs';
+import { AlertsPage } from './pages/Alerts';
+import { Settings } from './pages/Settings';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -33,7 +31,7 @@ function App() {
             <Route path="ai-insights" element={<AIInsightsPage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="alerts" element={<AlertsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </BrowserRouter>

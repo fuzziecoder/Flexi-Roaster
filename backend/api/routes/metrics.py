@@ -1,107 +1,164 @@
 """
-Metrics API Routes
-System and pipeline metrics using database
+Metrics API routes.
+Provides system metrics and historical data.
 """
-import random
+from fastapi import APIRouter
 from datetime import datetime, timedelta
 from typing import List
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+import random
 
-from backend.api.schemas import MetricsResponse, MetricsHistoryResponse
-from backend.db.database import get_db
-from backend.db import crud
+from backend.api.schemas import SystemMetricsResponse, MetricResponse, MetricsHistoryResponse
 
-router = APIRouter(prefix="/api/metrics", tags=["metrics"])
+router = APIRouter(prefix="/metrics", tags=["metrics"])
+
+# Import storage from other routes
+from backend.api.routes.pipelines import pipelines_db
+from backend.api.routes.executions import executions_db
 
 
-def calculate_metrics(db: Session) -> MetricsResponse:
-    """Calculate current system metrics from database"""
-    # Get executions from database
-    db_executions = crud.get_executions(db, limit=100)
-    total_executions = len(db_executions)
+@router.get(
+    "",
+    response_model=SystemMetricsResponse,
+    summary="Get current system metrics"
+)
+async def get_metrics():
+    """
+    Get current system metrics including:
+    - CPU and memory usage
+    - Pipeline throughput
+    - Active executions
+    - Failure rate
+    - Success rate
+    - Average duration
+    """
+    # Calculate metrics from executions
+    all_executions = list(executions_db.values())
     
-    if total_executions == 0:
-        return MetricsResponse(
-            cpu=random.uniform(20, 40),
-            memory=random.uniform(30, 50),
-            throughput=0,
-            active_executions=0,
-            total_pipelines=0,
-            success_rate=0,
-            failure_rate=0,
-            avg_duration=0,
-            timestamp=datetime.utcnow()
-        )
+    # Active executions
+    from backend.models.pipeline import ExecutionStatus
+    active_executions = len([
+        e for e in all_executions
+        if e.status in [ExecutionStatus.PENDING, ExecutionStatus.RUNNING]
+    ])
     
-    # Calculate from actual executions
-    completed = [e for e in db_executions if e.status == "completed"]
-    failed = [e for e in db_executions if e.status == "failed"]
-    running = [e for e in db_executions if e.status == "running"]
+    # Success and failure rates
+    completed_executions = [
+        e for e in all_executions
+        if e.status in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED]
+    ]
     
-    total_completed = len(completed) + len(failed)
-    success_rate = (len(completed) / total_completed * 100) if total_completed > 0 else 0
-    failure_rate = (len(failed) / total_completed * 100) if total_completed > 0 else 0
+    if completed_executions:
+        successful = len([e for e in completed_executions if e.status == ExecutionStatus.COMPLETED])
+        success_rate = (successful / len(completed_executions)) * 100
+        failure_rate = 100 - success_rate
+    else:
+        success_rate = 100.0
+        failure_rate = 0.0
     
-    # Calculate average duration
-    durations = [e.duration for e in completed if e.duration]
-    avg_duration = sum(durations) / len(durations) if durations else 0
+    # Average duration
+    durations = [e.duration for e in completed_executions if e.duration is not None]
+    avg_duration = sum(durations) / len(durations) if durations else 0.0
     
-    # Simulate system metrics
-    cpu = random.uniform(40, 80) if running else random.uniform(20, 40)
-    memory = random.uniform(50, 70) if running else random.uniform(30, 50)
+    # Pipeline throughput (executions in last minute)
+    one_minute_ago = datetime.now() - timedelta(minutes=1)
+    recent_executions = [
+        e for e in all_executions
+        if e.started_at >= one_minute_ago
+    ]
+    pipeline_throughput = len(recent_executions)
     
-    # Get pipelines count
-    db_pipelines = crud.get_pipelines(db)
+    # Simulated CPU and memory (would be real in production)
+    cpu_usage = random.uniform(20, 80)
+    memory_usage = random.uniform(30, 70)
     
-    return MetricsResponse(
-        cpu=round(cpu, 1),
-        memory=round(memory, 1),
-        throughput=round(total_executions / 60, 2),  # per minute
-        active_executions=len(running),
-        total_pipelines=len(db_pipelines),
-        success_rate=round(success_rate, 1),
-        failure_rate=round(failure_rate, 1),
-        avg_duration=round(avg_duration, 2),
-        timestamp=datetime.utcnow()
+    return SystemMetricsResponse(
+        cpu_usage=cpu_usage,
+        memory_usage=memory_usage,
+        pipeline_throughput=pipeline_throughput,
+        active_executions=active_executions,
+        failure_rate=failure_rate,
+        total_pipelines=len(pipelines_db),
+        success_rate=success_rate,
+        avg_duration=avg_duration,
+        timestamp=datetime.now()
     )
 
 
-@router.get("", response_model=MetricsResponse)
-async def get_metrics(db: Session = Depends(get_db)):
-    """Get current system metrics"""
-    return calculate_metrics(db)
-
-
-@router.get("/history", response_model=MetricsHistoryResponse)
-async def get_metrics_history(hours: int = 24, db: Session = Depends(get_db)):
-    """Get historical metrics"""
-    end_time = datetime.utcnow()
-    start_time = end_time - timedelta(hours=hours)
+@router.get(
+    "/history",
+    response_model=MetricsHistoryResponse,
+    summary="Get historical metrics"
+)
+async def get_metrics_history(
+    metric: str = "throughput",
+    period: str = "1h"
+):
+    """
+    Get historical metrics data.
     
-    # Generate sample historical data (will be replaced with actual DB queries)
-    metrics_list: List[MetricsResponse] = []
+    - **metric**: Metric name (throughput, cpu, memory, etc.)
+    - **period**: Time period (1h, 24h, 7d, 30d)
+    """
+    # Parse period
+    period_map = {
+        "1h": timedelta(hours=1),
+        "24h": timedelta(hours=24),
+        "7d": timedelta(days=7),
+        "30d": timedelta(days=30)
+    }
     
-    # Generate data points every hour
-    current_time = start_time
-    while current_time <= end_time:
-        metrics_list.append(
-            MetricsResponse(
-                cpu=random.uniform(40, 80),
-                memory=random.uniform(50, 70),
-                throughput=random.uniform(10, 30),
-                active_executions=random.randint(0, 5),
-                total_pipelines=random.randint(5, 15),
-                success_rate=random.uniform(85, 99),
-                failure_rate=random.uniform(1, 15),
-                avg_duration=random.uniform(30, 120),
-                timestamp=current_time
-            )
-        )
-        current_time += timedelta(hours=1)
+    if period not in period_map:
+        period = "1h"
+    
+    delta = period_map[period]
+    end_time = datetime.now()
+    start_time = end_time - delta
+    
+    # Generate sample historical data
+    # In production, this would query from database
+    metrics: List[MetricResponse] = []
+    
+    # Generate data points based on period
+    if period == "1h":
+        points = 12  # Every 5 minutes
+        interval = timedelta(minutes=5)
+    elif period == "24h":
+        points = 24  # Every hour
+        interval = timedelta(hours=1)
+    elif period == "7d":
+        points = 7  # Every day
+        interval = timedelta(days=1)
+    else:  # 30d
+        points = 30  # Every day
+        interval = timedelta(days=1)
+    
+    for i in range(points):
+        timestamp = start_time + (interval * i)
+        
+        # Generate sample values based on metric type
+        if metric == "throughput":
+            value = random.uniform(800, 2200)
+            unit = "req/min"
+        elif metric == "cpu":
+            value = random.uniform(20, 80)
+            unit = "%"
+        elif metric == "memory":
+            value = random.uniform(30, 70)
+            unit = "%"
+        else:
+            value = random.uniform(0, 100)
+            unit = None
+        
+        metrics.append(MetricResponse(
+            name=metric,
+            value=value,
+            unit=unit,
+            timestamp=timestamp
+        ))
     
     return MetricsHistoryResponse(
-        metrics=metrics_list,
+        metrics=metrics,
+        period=period,
         start_time=start_time,
         end_time=end_time
     )

@@ -1,74 +1,86 @@
 """
-Updated FastAPI Main Application with Database Initialization
+FlexiRoaster FastAPI Application.
+Main entry point for the REST API server.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+from fastapi.responses import JSONResponse
+from datetime import datetime
+import uvicorn
 
-from backend.api.routes import pipelines, executions, metrics, ai
-from backend.db.database import init_db
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan events - startup and shutdown"""
-    # Startup: Initialize database
-    print("Initializing database...")
-    init_db()
-    print("✓ Database initialized")
-    
-    yield
-    
-    # Shutdown
-    print("Shutting down...")
-
+from backend.config import settings
+from backend.api.routes import pipelines, executions, metrics
 
 # Create FastAPI app
 app = FastAPI(
-    title="FlexiRoaster API",
-    description="Pipeline Automation Platform API",
-    version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    lifespan=lifespan
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="Production-grade pipeline automation backend with AI-powered insights",
+    docs_url=f"{settings.API_PREFIX}/docs",
+    redoc_url=f"{settings.API_PREFIX}/redoc",
+    openapi_url=f"{settings.API_PREFIX}/openapi.json"
 )
 
-# Configure CORS
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(pipelines.router)
-app.include_router(executions.router)
-app.include_router(metrics.router)
-app.include_router(ai.router)
+
+# Exception handlers
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler"""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "detail": str(exc),
+            "timestamp": datetime.now().isoformat()
+        }
+    )
 
 
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "name": "FlexiRoaster API",
-        "version": "1.0.0",
-        "status": "running",
-        "docs": "/api/docs"
-    }
-
-
-@app.get("/health")
+# Health check endpoint
+@app.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "database": "connected"
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "timestamp": datetime.now().isoformat()
     }
 
 
+# Root endpoint
+@app.get("/", tags=["root"])
+async def root():
+    """Root endpoint with API information"""
+    return {
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "docs": f"{settings.API_PREFIX}/docs",
+        "health": "/health"
+    }
+
+
+# Include routers
+app.include_router(pipelines.router, prefix=settings.API_PREFIX)
+app.include_router(executions.router, prefix=settings.API_PREFIX)
+app.include_router(metrics.router, prefix=settings.API_PREFIX)
+
+
+# Run server
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run(
+        "backend.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower()
+    )

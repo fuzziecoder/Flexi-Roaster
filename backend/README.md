@@ -1,64 +1,114 @@
-# FlexiRoaster Backend
+# FlexiRoaster Backend - Quick Start
 
-Python backend for FlexiRoaster pipeline automation platform.
+## Installation
 
-## Setup
+### Prerequisites
+- Python 3.10 or higher
+- pip (Python package manager)
+
+### Install Dependencies
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-## CLI Usage
+## Running the Backend
 
-### Execute a pipeline
+### Option 1: CLI Testing (Phase 1)
+
+Test pipeline execution from command line:
+
 ```bash
-python -m backend.cli execute --pipeline backend/examples/sample_pipeline.yaml
+# Execute sample pipeline
+python -m backend.cli execute --pipeline backend/examples/sample.yaml --verbose
+
+# List available examples
+python -m backend.cli list-examples
 ```
 
-### Validate a pipeline
+### Option 2: API Server (Phase 2)
+
+Start the FastAPI server:
+
 ```bash
-python -m backend.cli validate --pipeline backend/examples/sample_pipeline.yaml
+# Development mode (with auto-reload)
+python -m backend.main
+
+# Or using uvicorn directly
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### List loaded pipelines
+Server will be available at:
+- **API**: http://localhost:8000
+- **Docs**: http://localhost:8000/api/docs
+- **Health**: http://localhost:8000/health
+
+## API Endpoints
+
+### Pipelines
+- `POST /api/pipelines` - Create pipeline
+- `GET /api/pipelines` - List pipelines
+- `GET /api/pipelines/{id}` - Get pipeline
+- `PUT /api/pipelines/{id}` - Update pipeline
+- `DELETE /api/pipelines/{id}` - Delete pipeline
+
+### Executions
+- `POST /api/executions` - Start execution
+- `GET /api/executions` - List executions
+- `GET /api/executions/{id}` - Get execution details
+- `GET /api/executions/{id}/logs` - Get logs
+- `DELETE /api/executions/{id}` - Cancel execution
+
+### Metrics
+- `GET /api/metrics` - Current metrics
+- `GET /api/metrics/history` - Historical data
+
+## Example Usage
+
+### Create a Pipeline
+
 ```bash
-python -m backend.cli list
+curl -X POST http://localhost:8000/api/pipelines \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "test-pipeline",
+    "description": "Test pipeline",
+    "stages": [
+      {
+        "name": "Input Stage",
+        "type": "input",
+        "config": {"source": "test.csv"}
+      }
+    ]
+  }'
 ```
 
-## Project Structure
+### Execute a Pipeline
 
-```
-backend/
-├── core/           # Core pipeline engine
-├── models/         # Pydantic models
-├── db/             # Database layer
-├── api/            # FastAPI routes
-├── ai/             # AI/ML features
-├── examples/       # Sample pipelines
-└── cli.py          # CLI tool
+```bash
+curl -X POST http://localhost:8000/api/executions \
+  -H "Content-Type: application/json" \
+  -d '{"pipeline_id": "your-pipeline-id"}'
 ```
 
-## Pipeline Definition
+## Configuration
 
-Pipelines are defined in YAML or JSON format:
+Copy `.env.example` to `.env` and customize:
 
-```yaml
-name: "My Pipeline"
-description: "Pipeline description"
-version: "1.0"
-
-stages:
-  - id: "stage1"
-    name: "Stage Name"
-    type: "input"  # input, transform, output
-    config:
-      key: "value"
-    dependencies: []
+```bash
+cp backend/.env.example backend/.env
 ```
 
-## Stage Types
+## Next Steps
 
-- **input**: Read data from source
-- **transform**: Process/transform data
-- **output**: Write data to destination
+1. Install Python and dependencies
+2. Test CLI execution
+3. Start API server
+4. Test endpoints with Postman or curl
+5. Integrate with frontend (already running on port 5173)
+
+## Documentation
+
+- Full implementation plan: `implementation_plan.md`
+- Task checklist: `task.md`
+- Walkthrough: `walkthrough.md`
