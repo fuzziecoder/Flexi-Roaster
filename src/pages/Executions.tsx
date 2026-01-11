@@ -50,7 +50,7 @@ export function ExecutionsPage() {
                         <div>
                             <div className="text-xs text-white/50">Running</div>
                             <div className="text-xl font-semibold text-white/90">
-                                {executionsList.filter(e => e.status === 'running').length}
+                                {executionsList.filter((e: any) => e.status === 'running').length}
                             </div>
                         </div>
                     </div>
@@ -64,7 +64,7 @@ export function ExecutionsPage() {
                         <div>
                             <div className="text-xs text-white/50">Completed</div>
                             <div className="text-xl font-semibold text-white/90">
-                                {executionsList.filter(e => e.status === 'completed').length}
+                                {executionsList.filter((e: any) => e.status === 'completed').length}
                             </div>
                         </div>
                     </div>
@@ -78,7 +78,7 @@ export function ExecutionsPage() {
                         <div>
                             <div className="text-xs text-white/50">Failed</div>
                             <div className="text-xl font-semibold text-white/90">
-                                {executionsList.filter(e => e.status === 'failed').length}
+                                {executionsList.filter((e: any) => e.status === 'failed').length}
                             </div>
                         </div>
                     </div>
@@ -94,7 +94,7 @@ export function ExecutionsPage() {
                             <div className="text-xl font-semibold text-white/90">
                                 {executionsList.length > 0
                                     ? formatDuration(
-                                        executionsList.reduce((sum, e) => sum + (e.duration || 0), 0) /
+                                        executionsList.reduce((sum: number, e: any) => sum + (e.duration || 0), 0) /
                                         executionsList.length
                                     )
                                     : '0s'}
@@ -125,7 +125,7 @@ export function ExecutionsPage() {
                                 <div className="flex items-center justify-between">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3">
-                                            <StatusBadge status={execution.status} />
+                                            <StatusBadge variant={execution.status} />
                                             <span className="font-medium text-white/90">
                                                 {execution.pipeline_name}
                                             </span>
