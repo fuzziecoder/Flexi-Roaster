@@ -1,6 +1,37 @@
-import { User, Bell, Shield, Database, Palette, Save } from 'lucide-react';
+import { User, Bell, Shield, Database, Palette, Save, Upload } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useAvatarUpload } from '@/hooks/useAvatarUpload';
+import { useRef, useState } from 'react';
 
 export function Settings() {
+    const { user } = useAuth();
+    const { uploadAvatar, uploading, error: uploadError } = useAvatarUpload();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [successMessage, setSuccessMessage] = useState('');
+
+    // Get user display info
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+    const userEmail = user?.email || 'user@example.com';
+    const userAvatar = user?.user_metadata?.avatar_url;
+
+    const handleAvatarClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setSuccessMessage('');
+        const { error } = await uploadAvatar(file);
+
+        if (!error) {
+            setSuccessMessage('Avatar updated successfully! Refresh to see changes.');
+            // Reload page after 1 second to show new avatar
+            setTimeout(() => window.location.reload(), 1000);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div>
@@ -10,28 +41,75 @@ export function Settings() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                    {/* Profile Settings */}
+                    {/* Profile Section */}
                     <div className="card p-6">
-                        <div className="flex items-center gap-3 mb-6">
-                            <User className="w-5 h-5 text-gray-300" />
+                        <div className="flex items-center gap-2 mb-4">
+                            <User className="w-5 h-5 text-white/70" />
                             <h2 className="text-lg font-semibold text-white">Profile</h2>
                         </div>
+
+                        {/* Success/Error Messages */}
+                        {successMessage && (
+                            <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded text-green-400 text-sm">
+                                {successMessage}
+                            </div>
+                        )}
+                        {uploadError && (
+                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
+                                {uploadError}
+                            </div>
+                        )}
+
                         <div className="space-y-4">
+                            <div className="flex items-center gap-4">
+                                {userAvatar ? (
+                                    <img
+                                        src={userAvatar}
+                                        alt={userName}
+                                        className="w-16 h-16 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+                                        <User className="w-8 h-8 text-white/70" />
+                                    </div>
+                                )}
+                                <div>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleFileChange}
+                                        className="hidden"
+                                    />
+                                    <button
+                                        onClick={handleAvatarClick}
+                                        disabled={uploading}
+                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    >
+                                        <Upload className="w-4 h-4" />
+                                        {uploading ? 'Uploading...' : 'Change Avatar'}
+                                    </button>
+                                    <p className="text-xs text-white/40 mt-1">Max 2MB, JPG or PNG</p>
+                                </div>
+                            </div>
                             <div>
-                                <label className="text-sm text-gray-400 mb-1 block">Name</label>
+                                <label className="block text-sm font-medium text-white/70 mb-2">Name</label>
                                 <input
                                     type="text"
-                                    defaultValue="Administrator"
-                                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-gray-500 transition-colors"
+                                    value={userName}
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white focus:outline-none focus:border-white/20"
+                                    readOnly
                                 />
                             </div>
                             <div>
-                                <label className="text-sm text-gray-400 mb-1 block">Email</label>
+                                <label className="block text-sm font-medium text-white/70 mb-2">Email</label>
                                 <input
                                     type="email"
-                                    defaultValue="admin@flexiroaster.io"
-                                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-gray-500 transition-colors"
+                                    value={userEmail}
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white focus:outline-none focus:border-white/20"
+                                    readOnly
                                 />
+                                <p className="text-xs text-white/40 mt-1">Email cannot be changed</p>
                             </div>
                         </div>
                     </div>

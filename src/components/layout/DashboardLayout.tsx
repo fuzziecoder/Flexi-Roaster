@@ -1,21 +1,18 @@
-import { cn } from '@/lib/utils';
-import { useUIStore } from '@/store';
+import { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Outlet } from 'react-router-dom';
 
 export function DashboardLayout() {
-    const { sidebarCollapsed } = useUIStore();
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     return (
-        <div className="min-h-screen bg-[hsl(var(--background))]">
-            <Sidebar />
-            <div className={cn(
-                'transition-all duration-300',
-                sidebarCollapsed ? 'ml-16' : 'ml-64'
-            )}>
+        <div className="flex min-h-screen bg-[hsl(var(--background))]">
+            <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
+
+            <div className="flex-1 flex flex-col">
                 <TopBar />
-                <main className="mt-16 p-6">
+                <main className="flex-1 overflow-auto p-6">
                     <Outlet />
                 </main>
             </div>
