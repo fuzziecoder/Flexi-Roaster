@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Outlet } from 'react-router-dom';
+import { ToastContainer } from '@/components/common';
 
 export function DashboardLayout() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -16,6 +17,10 @@ export function DashboardLayout() {
                     <Outlet />
                 </main>
             </div>
+
+            {/* Toast Notifications */}
+            <ToastContainer />
         </div>
     );
 }
+

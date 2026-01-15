@@ -1,150 +1,132 @@
-import { useExecutions } from '@/lib/hooks';
+import { useState } from 'react';
+import { Card } from '@/components/common';
 import { StatusBadge } from '@/components/common';
-import { Play, Clock, CheckCircle, XCircle, ChevronRight } from 'lucide-react';
-import { formatDate, formatDuration } from '@/lib/formatters';
-import { Link } from 'react-router-dom';
+import { Play, Search, Calendar } from 'lucide-react';
+import { useExecutions } from '@/hooks/useExecutions';
+import { TriggerExecutionModal } from '@/components/modals';
+import { formatRelativeTime } from '@/lib/utils';
 
 export function ExecutionsPage() {
-    const { data: executions, isLoading, error } = useExecutions();
+    const { executions, loading } = useExecutions();
+    const [showTriggerModal, setShowTriggerModal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
 
-    if (isLoading) {
+    const filteredExecutions = executions.filter(exec => {
+        const matchesSearch = exec.pipeline?.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = statusFilter === 'all' || exec.status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
+
+    if (loading) {
         return (
-            <div className="flex items-center justify-center h-96">
-                <div className="text-white/50">Loading executions...</div>
+            <div className="flex items-center justify-center h-64">
+                <div className="text-white/70">Loading executions...</div>
             </div>
         );
     }
-
-    if (error) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <div className="text-red-400">Error loading executions. Make sure backend is running.</div>
-            </div>
-        );
-    }
-
-    const executionsList = executions || [];
 
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-semibold text-white/90">Executions</h1>
-                    <p className="text-sm text-white/50 mt-1">Pipeline execution history</p>
+                    <h1 className="text-2xl font-bold text-white">Executions</h1>
+                    <p className="text-white/50 mt-1">{filteredExecutions.length} executions</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-sm text-white/50">
-                        Total: {executionsList.length}
-                    </span>
-                </div>
+                <button
+                    onClick={() => setShowTriggerModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/90 hover:bg-white text-black rounded font-medium transition-colors"
+                >
+                    <Play className="w-4 h-4" />
+                    Trigger Execution
+                </button>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/5 rounded">
-                            <Play size={20} className="text-white/70" />
-                        </div>
-                        <div>
-                            <div className="text-xs text-white/50">Running</div>
-                            <div className="text-xl font-semibold text-white/90">
-                                {executionsList.filter((e: any) => e.status === 'running').length}
-                            </div>
-                        </div>
-                    </div>
+            {/* Filters */}
+            <div className="flex items-center gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by pipeline name..."
+                        className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder:text-white/40 focus:outline-none focus:border-white/20 transition-colors"
+                    />
                 </div>
-
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/5 rounded">
-                            <CheckCircle size={20} className="text-white/70" />
-                        </div>
-                        <div>
-                            <div className="text-xs text-white/50">Completed</div>
-                            <div className="text-xl font-semibold text-white/90">
-                                {executionsList.filter((e: any) => e.status === 'completed').length}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/5 rounded">
-                            <XCircle size={20} className="text-white/70" />
-                        </div>
-                        <div>
-                            <div className="text-xs text-white/50">Failed</div>
-                            <div className="text-xl font-semibold text-white/90">
-                                {executionsList.filter((e: any) => e.status === 'failed').length}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/5 rounded">
-                            <Clock size={20} className="text-white/70" />
-                        </div>
-                        <div>
-                            <div className="text-xs text-white/50">Avg Duration</div>
-                            <div className="text-xl font-semibold text-white/90">
-                                {executionsList.length > 0
-                                    ? formatDuration(
-                                        executionsList.reduce((sum: number, e: any) => sum + (e.duration || 0), 0) /
-                                        executionsList.length
-                                    )
-                                    : '0s'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-4 py-2 bg-[hsl(var(--card))] border border-white/10 rounded text-white focus:outline-none focus:border-white/20 transition-colors [&>option]:bg-[hsl(var(--card))] [&>option]:text-white"
+                >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
             </div>
 
             {/* Executions List */}
-            <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                <div className="p-4 border-b border-white/10">
-                    <h2 className="text-sm font-medium text-white/90">Recent Executions</h2>
-                </div>
-
-                <div className="divide-y divide-white/10">
-                    {executionsList.length === 0 ? (
-                        <div className="p-8 text-center text-white/50">
-                            No executions yet. Start by executing a pipeline.
-                        </div>
-                    ) : (
-                        executionsList.map((execution: any) => (
-                            <Link
-                                key={execution.id}
-                                to={`/executions/${execution.id}`}
-                                className="block p-4 hover:bg-white/5 transition-colors"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3">
-                                            <StatusBadge variant={execution.status} />
-                                            <span className="font-medium text-white/90">
-                                                {execution.pipeline_name}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-4 mt-2 text-xs text-white/50">
-                                            <span>ID: {execution.id}</span>
-                                            <span>Started: {formatDate(execution.started_at)}</span>
-                                            {execution.duration && (
-                                                <span>Duration: {formatDuration(execution.duration)}</span>
-                                            )}
-                                        </div>
+            {filteredExecutions.length === 0 ? (
+                <Card className="p-12 text-center">
+                    <p className="text-white/50">
+                        {searchQuery || statusFilter !== 'all'
+                            ? 'No executions found matching your filters.'
+                            : 'No executions yet. Trigger your first execution!'}
+                    </p>
+                </Card>
+            ) : (
+                <div className="space-y-3">
+                    {filteredExecutions.map((execution) => (
+                        <Card key={execution.id} className="p-4 hover:border-white/20 transition-colors">
+                            <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <h3 className="text-lg font-semibold text-white">
+                                            {execution.pipeline?.name || 'Unknown Pipeline'}
+                                        </h3>
+                                        <StatusBadge
+                                            variant={execution.status}
+                                            label={execution.status.charAt(0).toUpperCase() + execution.status.slice(1)}
+                                            pulse={execution.status === 'running'}
+                                        />
                                     </div>
-                                    <ChevronRight size={20} className="text-white/30" />
+                                    <div className="flex items-center gap-4 text-sm text-white/50">
+                                        <span className="flex items-center gap-1.5">
+                                            <Calendar className="w-4 h-4" />
+                                            {formatRelativeTime(execution.created_at)}
+                                        </span>
+                                        {execution.started_at && (
+                                            <span>
+                                                Started: {formatRelativeTime(execution.started_at)}
+                                            </span>
+                                        )}
+                                        {execution.completed_at && (
+                                            <span>
+                                                Completed: {formatRelativeTime(execution.completed_at)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {execution.error_message && (
+                                        <p className="mt-2 text-sm text-red-400">
+                                            Error: {execution.error_message}
+                                        </p>
+                                    )}
                                 </div>
-                            </Link>
-                        ))
-                    )}
+                            </div>
+                        </Card>
+                    ))}
                 </div>
-            </div>
+            )}
+
+            {/* Trigger Execution Modal */}
+            <TriggerExecutionModal
+                isOpen={showTriggerModal}
+                onClose={() => setShowTriggerModal(false)}
+            />
         </div>
     );
 }

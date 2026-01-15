@@ -1,7 +1,6 @@
 import { cn } from '@/lib/utils';
-import type { PipelineStatus as PipelineStatusType, LogLevel, AlertSeverity } from '@/types';
 
-type BadgeVariant = PipelineStatusType | LogLevel | AlertSeverity | 'default';
+type BadgeVariant = string;
 
 interface StatusBadgeProps {
     variant: BadgeVariant;
@@ -19,10 +18,12 @@ const variantStyles: Record<string, string> = {
     failed: 'bg-white/10 text-white/70 border-white/20',
     pending: 'bg-white/5 text-white/40 border-white/10',
     paused: 'bg-white/5 text-white/50 border-white/10',
+    cancelled: 'bg-white/5 text-white/50 border-white/10',
 
     // Log Levels - subtle grey variations
     info: 'bg-white/10 text-white/80 border-white/20',
     warn: 'bg-white/10 text-white/70 border-white/20',
+    warning: 'bg-white/10 text-white/70 border-white/20',
     error: 'bg-white/15 text-white/90 border-white/25',
     debug: 'bg-white/5 text-white/40 border-white/10',
     success: 'bg-white/5 text-white/60 border-white/10',
@@ -49,8 +50,10 @@ const variantLabels: Record<string, string> = {
     failed: 'Failed',
     pending: 'Pending',
     paused: 'Paused',
+    cancelled: 'Cancelled',
     info: 'INFO',
     warn: 'WARN',
+    warning: 'WARNING',
     error: 'ERROR',
     debug: 'DEBUG',
     success: 'SUCCESS',

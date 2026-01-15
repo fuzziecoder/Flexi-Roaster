@@ -1,17 +1,22 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { FlexibleAI } from '@/components/ai';
 import {
     LayoutDashboard,
     GitBranch,
-    Activity,
-    Brain,
-    FileText,
-    AlertTriangle,
-    Settings,
+    Play,
+    Calendar,
+    Plug,
+    KeyRound,
+    LayoutTemplate,
+    Sparkles,
+    ScrollText,
+    Bell,
+    Cog,
     ChevronLeft,
     ChevronRight,
-    HelpCircle,
+    CircleHelp,
     LogOut,
     User,
 } from 'lucide-react';
@@ -44,11 +49,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const navItems = [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/pipelines', icon: GitBranch, label: 'Pipelines' },
-        { to: '/executions', icon: Activity, label: 'Executions' },
-        { to: '/ai-insights', icon: Brain, label: 'AI Insights' },
-        { to: '/logs', icon: FileText, label: 'Logs' },
-        { to: '/alerts', icon: AlertTriangle, label: 'Alerts' },
-        { to: '/settings', icon: Settings, label: 'Settings' },
+        { to: '/executions', icon: Play, label: 'Executions' },
+        { to: '/schedules', icon: Calendar, label: 'Schedules' },
+        { to: '/integrations', icon: Plug, label: 'Integrations' },
+        { to: '/secrets', icon: KeyRound, label: 'Secrets' },
+        { to: '/templates', icon: LayoutTemplate, label: 'Templates' },
+        { to: '/ai-insights', icon: Sparkles, label: 'AI Insights' },
+        { to: '/logs', icon: ScrollText, label: 'Logs' },
+        { to: '/alerts', icon: Bell, label: 'Alerts' },
+        { to: '/settings', icon: Cog, label: 'Settings' },
+        { to: '/help', icon: CircleHelp, label: 'Help & Docs' },
     ];
 
     return (
@@ -113,6 +123,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                             </NavLink>
                         ))}
                     </nav>
+
+                    {/* Flexible AI */}
+                    <FlexibleAI collapsed={collapsed} />
 
                     {/* User Profile */}
                     <div className="relative border-t border-white/10 p-3">

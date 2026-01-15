@@ -1,135 +1,148 @@
-import { useAlertStore } from '@/store';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Card } from '@/components/common';
+import { StatusBadge } from '@/components/common';
+import { Search, CheckCircle, XCircle } from 'lucide-react';
+import { useAlerts } from '@/hooks/useAlerts';
+import { formatRelativeTime } from '@/lib/utils';
+import type { AlertSeverity, AlertStatus } from '@/types/database';
 
 export function AlertsPage() {
-    const { alerts, acknowledgeAlert, resolveAlert } = useAlertStore();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [severityFilter, setSeverityFilter] = useState<AlertSeverity | ''>('');
+    const [statusFilter, setStatusFilter] = useState<AlertStatus | ''>('');
 
-    const getSeverityColor = (severity: string) => {
-        switch (severity) {
-            case 'critical':
-                return 'bg-white/20 text-white/90 border-white/30';
-            case 'high':
-                return 'bg-white/15 text-white/80 border-white/20';
-            case 'medium':
-                return 'bg-white/10 text-white/70 border-white/15';
-            default:
-                return 'bg-white/5 text-white/60 border-white/10';
-        }
+    const { alerts, loading, acknowledgeAlert, resolveAlert } = useAlerts({
+        severity: severityFilter || undefined,
+        status: statusFilter || undefined,
+    });
+
+    const filteredAlerts = alerts.filter(alert =>
+        alert.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        alert.message.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const handleAcknowledge = async (alertId: string) => {
+        await acknowledgeAlert(alertId);
     };
 
-    const activeAlerts = alerts.filter((a) => !a.resolvedAt);
-    const resolvedAlerts = alerts.filter((a) => a.resolvedAt);
+    const handleResolve = async (alertId: string) => {
+        await resolveAlert(alertId);
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-white/70">Loading alerts...</div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-semibold text-white/90">Alerts</h1>
-                    <p className="text-sm text-white/50 mt-1">System alerts and notifications</p>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
-                    <AlertTriangle size={16} className="text-white/70" />
-                    <span className="text-sm text-white/70">{activeAlerts.length} active</span>
+                    <h1 className="text-2xl font-bold text-white">Alerts</h1>
+                    <p className="text-white/50 mt-1">{filteredAlerts.length} alerts</p>
                 </div>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg p-4">
-                    <div className="text-xs text-white/50 mb-1">Active Alerts</div>
-                    <div className="text-2xl font-semibold text-white/90">{activeAlerts.length}</div>
+            {/* Filters */}
+            <div className="flex items-center gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search alerts..."
+                        className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded text-white placeholder:text-white/40 focus:outline-none focus:border-white/20 transition-colors"
+                    />
                 </div>
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg p-4">
-                    <div className="text-xs text-white/50 mb-1">Resolved Today</div>
-                    <div className="text-2xl font-semibold text-white/90">{resolvedAlerts.length}</div>
-                </div>
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg p-4">
-                    <div className="text-xs text-white/50 mb-1">Acknowledged</div>
-                    <div className="text-2xl font-semibold text-white/90">
-                        {alerts.filter((a) => a.acknowledged).length}
-                    </div>
-                </div>
+                <select
+                    value={severityFilter}
+                    onChange={(e) => setSeverityFilter(e.target.value as AlertSeverity | '')}
+                    className="px-4 py-2 bg-[hsl(var(--card))] border border-white/10 rounded text-white focus:outline-none focus:border-white/20 transition-colors [&>option]:bg-[hsl(var(--card))] [&>option]:text-white"
+                >
+                    <option value="">All Severities</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                </select>
+                <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as AlertStatus | '')}
+                    className="px-4 py-2 bg-[hsl(var(--card))] border border-white/10 rounded text-white focus:outline-none focus:border-white/20 transition-colors [&>option]:bg-[hsl(var(--card))] [&>option]:text-white"
+                >
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="acknowledged">Acknowledged</option>
+                    <option value="resolved">Resolved</option>
+                </select>
             </div>
 
-            {/* Active Alerts */}
-            <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                <div className="p-4 border-b border-white/10">
-                    <h2 className="text-sm font-medium text-white/90">Active Alerts</h2>
-                </div>
-
-                <div className="divide-y divide-white/10">
-                    {activeAlerts.length === 0 ? (
-                        <div className="p-8 text-center">
-                            <CheckCircle size={48} className="mx-auto text-white/20 mb-4" />
-                            <p className="text-white/50">No active alerts</p>
-                        </div>
-                    ) : (
-                        activeAlerts.map((alert) => (
-                            <div key={alert.id} className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <span
-                                                className={`px-2 py-0.5 text-xs rounded border ${getSeverityColor(
-                                                    alert.severity
-                                                )}`}
-                                            >
-                                                {alert.severity.toUpperCase()}
-                                            </span>
-                                            <span className="font-medium text-white/90">{alert.title}</span>
-                                        </div>
-                                        <p className="text-sm text-white/70 mb-3">{alert.message}</p>
-                                        <div className="text-xs text-white/40">
-                                            {new Date(alert.timestamp).toLocaleString()}
-                                        </div>
+            {/* Alerts List */}
+            {filteredAlerts.length === 0 ? (
+                <Card className="p-12 text-center">
+                    <p className="text-white/50">
+                        {searchQuery || severityFilter || statusFilter
+                            ? 'No alerts found matching your filters.'
+                            : 'No alerts. Everything is running smoothly!'}
+                    </p>
+                </Card>
+            ) : (
+                <div className="space-y-3">
+                    {filteredAlerts.map((alert) => (
+                        <Card key={alert.id} className="p-6 hover:border-white/20 transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <h3 className="text-lg font-semibold text-white">{alert.title}</h3>
+                                        <StatusBadge
+                                            variant={alert.severity}
+                                            label={alert.severity.charAt(0).toUpperCase() + alert.severity.slice(1)}
+                                        />
+                                        <StatusBadge
+                                            variant="default"
+                                            label={alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
+                                            size="sm"
+                                        />
                                     </div>
-
-                                    <div className="flex items-center gap-2">
-                                        {!alert.acknowledged && (
-                                            <button
-                                                onClick={() => acknowledgeAlert(alert.id)}
-                                                className="px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-white/90 rounded border border-white/20 transition-colors"
-                                            >
-                                                Acknowledge
-                                            </button>
+                                    <p className="text-white/70 mb-3">{alert.message}</p>
+                                    <div className="flex items-center gap-4 text-sm text-white/50">
+                                        <span>Created: {formatRelativeTime(alert.created_at)}</span>
+                                        {alert.acknowledged_at && (
+                                            <span>Acknowledged: {formatRelativeTime(alert.acknowledged_at)}</span>
                                         )}
+                                        {alert.resolved_at && (
+                                            <span>Resolved: {formatRelativeTime(alert.resolved_at)}</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {alert.status === 'active' && (
                                         <button
-                                            onClick={() => resolveAlert(alert.id)}
-                                            className="px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-white/90 rounded border border-white/20 transition-colors"
+                                            onClick={() => handleAcknowledge(alert.id)}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm rounded transition-colors"
                                         >
+                                            <CheckCircle className="w-4 h-4" />
+                                            Acknowledge
+                                        </button>
+                                    )}
+                                    {(alert.status === 'active' || alert.status === 'acknowledged') && (
+                                        <button
+                                            onClick={() => handleResolve(alert.id)}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-white/90 hover:bg-white text-black text-sm rounded font-medium transition-colors"
+                                        >
+                                            <XCircle className="w-4 h-4" />
                                             Resolve
                                         </button>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
-                        ))
-                    )}
-                </div>
-            </div>
-
-            {/* Resolved Alerts */}
-            {resolvedAlerts.length > 0 && (
-                <div className="bg-[hsl(var(--card))] border border-white/10 rounded-lg">
-                    <div className="p-4 border-b border-white/10">
-                        <h2 className="text-sm font-medium text-white/90">Resolved Alerts</h2>
-                    </div>
-
-                    <div className="divide-y divide-white/10 max-h-96 overflow-y-auto">
-                        {resolvedAlerts.map((alert) => (
-                            <div key={alert.id} className="p-4 opacity-50">
-                                <div className="flex items-center gap-3">
-                                    <CheckCircle size={16} className="text-white/50" />
-                                    <div className="flex-1">
-                                        <div className="text-sm text-white/70">{alert.title}</div>
-                                        <div className="text-xs text-white/40 mt-1">
-                                            Resolved: {new Date(alert.resolvedAt!).toLocaleString()}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                        </Card>
+                    ))}
                 </div>
             )}
         </div>

@@ -9,6 +9,11 @@ import { AIInsightsPage } from './pages/AIInsights';
 import { LogsPage } from './pages/Logs';
 import { AlertsPage } from './pages/Alerts';
 import { Settings } from './pages/Settings';
+import { Help } from './pages/Help';
+import { SchedulesPage } from './pages/Schedules';
+import { IntegrationsPage } from './pages/Integrations';
+import { SecretsPage } from './pages/Secrets';
+import { TemplatesPage } from './pages/Templates';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { AuthCallback } from './pages/AuthCallback';
@@ -39,10 +44,15 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="pipelines" element={<PipelinesPage />} />
               <Route path="executions" element={<ExecutionsPage />} />
+              <Route path="schedules" element={<SchedulesPage />} />
+              <Route path="integrations" element={<IntegrationsPage />} />
+              <Route path="secrets" element={<SecretsPage />} />
+              <Route path="templates" element={<TemplatesPage />} />
               <Route path="ai-insights" element={<AIInsightsPage />} />
               <Route path="logs" element={<LogsPage />} />
               <Route path="alerts" element={<AlertsPage />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="help" element={<Help />} />
             </Route>
           </Route>
         </Routes>

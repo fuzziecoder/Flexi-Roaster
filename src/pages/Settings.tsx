@@ -1,6 +1,7 @@
 import { User, Bell, Shield, Database, Palette, Save, Upload } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
+import { toast } from '@/components/common';
 import { useRef, useState } from 'react';
 
 export function Settings() {
@@ -27,8 +28,10 @@ export function Settings() {
 
         if (!error) {
             setSuccessMessage('Avatar updated successfully! Refresh to see changes.');
-            // Reload page after 1 second to show new avatar
+            toast.success('Profile updated', 'Avatar has been updated successfully');
             setTimeout(() => window.location.reload(), 1000);
+        } else {
+            toast.error('Profile update failed', error);
         }
     };
 

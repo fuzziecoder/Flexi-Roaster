@@ -1,38 +1,17 @@
-import { cn, formatRelativeTime } from '@/lib/utils';
 import { Card } from '@/components/common';
-import { mockLogs } from '@/lib/mockData';
-import type { LogLevel } from '@/types';
-
-// Muted grey styles for log levels
-const levelStyles: Record<LogLevel, string> = {
-    info: 'text-white/70',
-    warn: 'text-white/60',
-    error: 'text-white/90',
-    debug: 'text-white/40',
-    success: 'text-white/60',
-};
-
-const levelBgStyles: Record<LogLevel, string> = {
-    info: 'bg-white/10',
-    warn: 'bg-white/10',
-    error: 'bg-white/15',
-    debug: 'bg-white/5',
-    success: 'bg-white/5',
-};
+import { StatusBadge } from '@/components/common';
+import { useLogs } from '@/hooks/useLogs';
+import { formatRelativeTime } from '@/lib/utils';
 
 export function ActivityLog() {
+    const { logs, loading } = useLogs({}, 10); // Get latest 10 logs
+
     return (
         <Card
             title="Activity Log"
             description="Recent system events"
             headerAction={
                 <div className="flex items-center gap-2">
-                    <select className="text-sm bg-white/5 border border-white/10 rounded px-2 py-1 text-white/60">
-                        <option value="all">All Levels</option>
-                        <option value="info">Info</option>
-                        <option value="warn">Warning</option>
-                        <option value="error">Error</option>
-                    </select>
                     <button className="text-sm text-white/50 hover:text-white/70">
                         View all
                     </button>
@@ -41,43 +20,41 @@ export function ActivityLog() {
             noPadding
         >
             <div className="max-h-[400px] overflow-y-auto">
-                <div className="divide-y divide-white/5">
-                    {mockLogs.map((log) => (
-                        <div
-                            key={log.id}
-                            className={cn(
-                                'flex items-start gap-3 p-3 transition-colors',
-                                'hover:bg-white/5'
-                            )}
-                        >
-                            {/* Level Badge */}
-                            <span
-                                className={cn(
-                                    'px-2 py-0.5 text-xs font-mono font-semibold rounded flex-shrink-0',
-                                    levelBgStyles[log.level],
-                                    levelStyles[log.level]
-                                )}
+                {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <p className="text-white/50">Loading logs...</p>
+                    </div>
+                ) : logs.length === 0 ? (
+                    <div className="flex items-center justify-center py-12 text-center">
+                        <p className="text-white/50">No activity logs yet</p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-white/5">
+                        {logs.map((log) => (
+                            <div
+                                key={log.id}
+                                className="flex items-start gap-3 p-3 transition-colors hover:bg-white/5"
                             >
-                                {log.level.toUpperCase()}
-                            </span>
+                                {/* Level Badge */}
+                                <StatusBadge
+                                    variant={log.level}
+                                    label={log.level.toUpperCase()}
+                                    size="sm"
+                                />
 
-                            {/* Timestamp */}
-                            <span className="text-xs text-white/40 font-mono flex-shrink-0 w-16">
-                                {formatRelativeTime(log.timestamp)}
-                            </span>
+                                {/* Timestamp */}
+                                <span className="text-xs text-white/40 font-mono flex-shrink-0 w-16">
+                                    {formatRelativeTime(log.created_at)}
+                                </span>
 
-                            {/* Service */}
-                            <span className="text-xs text-white/50 font-mono flex-shrink-0 hidden sm:block w-32 truncate">
-                                [{log.service}]
-                            </span>
-
-                            {/* Message */}
-                            <span className="text-sm text-white/70 font-mono flex-1 break-all">
-                                {log.message}
-                            </span>
-                        </div>
-                    ))}
-                </div>
+                                {/* Message */}
+                                <span className="text-sm text-white/70 font-mono flex-1 break-all">
+                                    {log.message}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Live indicator */}
