@@ -160,7 +160,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                     onClick={handleSettings}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left"
                                 >
-                                    <Settings className="w-4 h-4 text-white/70" />
+                                    <Cog className="w-4 h-4 text-white/70" />
                                     <span className="text-sm text-white">Settings</span>
                                 </button>
                                 <button
@@ -170,7 +170,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left"
                                 >
-                                    <HelpCircle className="w-4 h-4 text-white/70" />
+                                    <CircleHelp className="w-4 h-4 text-white/70" />
                                     <span className="text-sm text-white">Help</span>
                                 </button>
                                 <div className="border-t border-white/10"></div>

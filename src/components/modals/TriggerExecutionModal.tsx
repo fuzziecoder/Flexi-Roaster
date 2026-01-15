@@ -29,12 +29,11 @@ export function TriggerExecutionModal({ isOpen, onClose }: TriggerExecutionModal
             return;
         }
 
-        // Validate JSON parameters
-        let metadata = null;
-        if (parameters.trim()) {
+        // Validate JSON parameters (for user feedback, though not currently used)
+        if (parameters.trim() && parameters.trim() !== '{}') {
             try {
-                metadata = JSON.parse(parameters);
-            } catch (err) {
+                JSON.parse(parameters);
+            } catch {
                 setError('Invalid JSON parameters');
                 return;
             }
@@ -42,7 +41,7 @@ export function TriggerExecutionModal({ isOpen, onClose }: TriggerExecutionModal
 
         setLoading(true);
 
-        const { error: triggerError } = await triggerExecution(selectedPipelineId, metadata);
+        const { error: triggerError } = await triggerExecution(selectedPipelineId);
 
         setLoading(false);
 

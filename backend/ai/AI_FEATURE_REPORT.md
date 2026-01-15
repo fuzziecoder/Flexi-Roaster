@@ -30,7 +30,7 @@ risk_score = (
 
 **Factor Definitions:**
 
-1. **Historical Failure Rate** (40%)
+1. **Historical Failure Rate** (40%)330.
    - Ratio of failed executions to total executions
    - Normalized: `min(failure_rate * 2, 1.0)`
 

@@ -3,7 +3,6 @@ import { Card } from '@/components/common';
 import { StatusBadge } from '@/components/common';
 import { Search, Download } from 'lucide-react';
 import { useLogs } from '@/hooks/useLogs';
-import { formatRelativeTime } from '@/lib/utils';
 import type { LogLevel } from '@/types/database';
 
 export function LogsPage() {
