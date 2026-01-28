@@ -5,8 +5,19 @@
 [![React 18+](https://img.shields.io/badge/react-18+-61dafb.svg)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](https://fastapi.tiangolo.com/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Apertre'26](https://img.shields.io/badge/Apertre'26-Participating-orange.svg)](https://apertre.org)
 
 > An intelligent, full-stack pipeline automation framework with AI-powered optimization and real-time monitoring
+
+## 🎉 Apertre'26 Participation
+
+This project is proudly participating in **Apertre'26** - an open source contribution event. We welcome contributors of all skill levels!
+
+### Quick Contribution Guide
+- 🏷️ All issues are tagged with `apertre3.0` and difficulty levels (`Easy`, `Medium`, `Hard`)
+- 📖 Read our [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines
+- 🔍 Browse [open issues](../../issues) to find something to work on
+- ⭐ Star this repo to show your support!
 
 FlexiRoaster is a production-grade automation engine combining a **Python backend** for pipeline execution with a **React dashboard** for visualization and control. Built for reliability, observability, and continuous optimization.
 
