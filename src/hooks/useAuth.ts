@@ -73,6 +73,16 @@ export function useAuth() {
         return { data, error };
     };
 
+    const updateProfile = async (updates: { full_name?: string; avatar_url?: string | null }) => {
+        const { data, error } = await supabase.auth.updateUser({
+            data: updates,
+        });
+        if (!error && data.user) {
+            setUser(data.user);
+        }
+        return { data, error };
+    };
+
     return {
         user,
         session,
@@ -82,5 +92,6 @@ export function useAuth() {
         signOut,
         signInWithGoogle,
         signInWithGitHub,
+        updateProfile,
     };
 }
