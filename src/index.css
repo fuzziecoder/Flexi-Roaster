@@ -254,9 +254,96 @@ html.light .bg-\[\#111\] {
   background-color: hsl(0 0% 96%) !important;
 }
 
+/* Light theme: additional background overrides */
+html.light .bg-gray-800 {
+  background-color: hsl(0 0% 92%) !important;
+}
+
+html.light .bg-black {
+  background-color: hsl(0 0% 97%) !important;
+}
+
+html.light .bg-white\/15 {
+  background-color: hsl(0 0% 0% / 0.08) !important;
+}
+
+html.light .bg-white\/90 {
+  background-color: hsl(0 0% 15%) !important;
+}
+
+html.light .hover\:bg-white\/15:hover {
+  background-color: hsl(0 0% 0% / 0.08) !important;
+}
+
+html.light .hover\:bg-white:hover {
+  background-color: hsl(0 0% 10%) !important;
+}
+
+/* Light theme: primary action buttons (inverted for contrast) */
+html.light .bg-white {
+  background-color: hsl(0 0% 15%) !important;
+}
+
+html.light .hover\:bg-gray-200:hover {
+  background-color: hsl(0 0% 20%) !important;
+}
+
+html.light .text-black {
+  color: hsl(0 0% 98%) !important;
+}
+
+/* Light theme: additional border overrides */
+html.light .border-gray-700 {
+  border-color: hsl(0 0% 80%) !important;
+}
+
+html.light .border-gray-800 {
+  border-color: hsl(0 0% 85%) !important;
+}
+
+html.light .border-white\/15 {
+  border-color: hsl(0 0% 0% / 0.12) !important;
+}
+
+html.light .border-white\/25 {
+  border-color: hsl(0 0% 0% / 0.18) !important;
+}
+
+html.light .border-white\/30 {
+  border-color: hsl(0 0% 0% / 0.2) !important;
+}
+
+html.light .hover\:border-white\/10:hover {
+  border-color: hsl(0 0% 0% / 0.1) !important;
+}
+
+html.light .hover\:border-white\/30:hover {
+  border-color: hsl(0 0% 0% / 0.25) !important;
+}
+
+html.light .focus\:border-white\/30:focus {
+  border-color: hsl(0 0% 0% / 0.25) !important;
+}
+
+html.light .focus\:border-gray-500:focus {
+  border-color: hsl(0 0% 60%) !important;
+}
+
 /* Light theme: muted white alpha text */
+html.light .text-white\/90 {
+  color: hsl(0 0% 10%) !important;
+}
+
+html.light .text-white\/80 {
+  color: hsl(0 0% 20%) !important;
+}
+
 html.light .text-white\/30 {
   color: hsl(0 0% 60%) !important;
+}
+
+html.light .text-white\/15 {
+  color: hsl(0 0% 80%) !important;
 }
 
 html.light .text-white\/20 {
@@ -289,6 +376,25 @@ html.light .bg-white\/\[0\.02\] {
 
 html.light .hover\:bg-white\/10:hover {
   background-color: hsl(0 0% 0% / 0.07) !important;
+}
+
+/* Light theme: placeholder overrides */
+html.light .placeholder-white\/30::placeholder {
+  color: hsl(0 0% 55%) !important;
+}
+
+/* Light theme: divider overrides */
+html.light .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+  border-color: hsl(0 0% 0% / 0.08) !important;
+}
+
+/* Light theme: gradient overrides */
+html.light .from-white\/\[0\.03\] {
+  --tw-gradient-from: hsl(0 0% 0% / 0.03) !important;
+}
+
+html.light .to-white\/\[0\.01\] {
+  --tw-gradient-to: hsl(0 0% 0% / 0.01) !important;
 }
 
 * {
