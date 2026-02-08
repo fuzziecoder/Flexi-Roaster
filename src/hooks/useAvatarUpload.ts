@@ -69,5 +69,35 @@ export function useAvatarUpload() {
         }
     };
 
-    return { uploadAvatar, uploading, error };
+    const removeAvatar = async () => {
+        try {
+            setUploading(true);
+            setError(null);
+
+            if (!user) {
+                throw new Error('No user logged in');
+            }
+
+            // Clear avatar_url in user metadata
+            const { error: updateError } = await supabase.auth.updateUser({
+                data: {
+                    avatar_url: null,
+                },
+            });
+
+            if (updateError) {
+                throw updateError;
+            }
+
+            return { error: null };
+        } catch (err: any) {
+            const errorMessage = err.message || 'Failed to remove avatar';
+            setError(errorMessage);
+            return { error: errorMessage };
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return { uploadAvatar, removeAvatar, uploading, error };
 }
