@@ -1,16 +1,14 @@
-import { User, Bell, Shield, Database, Palette, Save, Upload, Sun, Moon, Monitor } from 'lucide-react';
+import { User, Bell, Shield, Database, Palette, Save, Upload } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
 import { toast } from '@/components/common';
 import { useRef, useState } from 'react';
-import { useUIStore } from '@/store/uiStore';
 
 export function Settings() {
     const { user } = useAuth();
     const { uploadAvatar, uploading, error: uploadError } = useAvatarUpload();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [successMessage, setSuccessMessage] = useState('');
-    const { theme, setTheme } = useUIStore();
 
     // Get user display info
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -119,76 +117,6 @@ export function Settings() {
                         </div>
                     </div>
 
-                    {/* Appearance / Theme Section */}
-                    <div className="card p-6">
-                        <div className="flex items-center gap-3 mb-6">
-                            <Palette className="w-5 h-5 text-gray-300" />
-                            <h2 className="text-lg font-semibold text-white">Appearance</h2>
-                        </div>
-                        <p className="text-gray-400 text-sm mb-4">Choose your preferred theme for the dashboard.</p>
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Dark Theme Option */}
-                            <button
-                                onClick={() => setTheme('dark')}
-                                className={`relative flex flex-col items-center gap-3 p-5 rounded-lg border-2 transition-all ${
-                                    theme === 'dark'
-                                        ? 'border-white bg-white/10'
-                                        : 'border-white/10 hover:border-white/30 bg-white/5'
-                                }`}
-                            >
-                                <div className="w-full aspect-video rounded-md bg-gray-900 border border-white/10 flex flex-col overflow-hidden">
-                                    <div className="h-2 bg-gray-800 border-b border-white/10"></div>
-                                    <div className="flex-1 flex">
-                                        <div className="w-1/4 bg-gray-800 border-r border-white/10"></div>
-                                        <div className="flex-1 p-1.5 space-y-1">
-                                            <div className="h-1.5 w-3/4 bg-gray-700 rounded"></div>
-                                            <div className="h-1.5 w-1/2 bg-gray-700 rounded"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Moon className="w-4 h-4" />
-                                    <span className="text-sm font-medium text-white">Dark</span>
-                                </div>
-                                {theme === 'dark' && (
-                                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-gray-900"></div>
-                                    </div>
-                                )}
-                            </button>
-
-                            {/* Light Theme Option */}
-                            <button
-                                onClick={() => setTheme('light')}
-                                className={`relative flex flex-col items-center gap-3 p-5 rounded-lg border-2 transition-all ${
-                                    theme === 'light'
-                                        ? 'border-white bg-white/10'
-                                        : 'border-white/10 hover:border-white/30 bg-white/5'
-                                }`}
-                            >
-                                <div className="w-full aspect-video rounded-md bg-gray-100 border border-gray-300 flex flex-col overflow-hidden">
-                                    <div className="h-2 bg-white border-b border-gray-200"></div>
-                                    <div className="flex-1 flex">
-                                        <div className="w-1/4 bg-white border-r border-gray-200"></div>
-                                        <div className="flex-1 p-1.5 space-y-1">
-                                            <div className="h-1.5 w-3/4 bg-gray-300 rounded"></div>
-                                            <div className="h-1.5 w-1/2 bg-gray-300 rounded"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Sun className="w-4 h-4" />
-                                    <span className="text-sm font-medium text-white">Light</span>
-                                </div>
-                                {theme === 'light' && (
-                                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-gray-900"></div>
-                                    </div>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
                     {/* Notification Settings */}
                     <div className="card p-6">
                         <div className="flex items-center gap-3 mb-6">
@@ -214,6 +142,7 @@ export function Settings() {
                     {[
                         { icon: Shield, label: 'Security', desc: 'Manage access controls' },
                         { icon: Database, label: 'Data', desc: 'Configure connections' },
+                        { icon: Palette, label: 'Theme', desc: 'Customize appearance' },
                     ].map((item) => (
                         <div key={item.label} className="card p-4 hover:border-gray-600 cursor-pointer transition-colors">
                             <div className="flex items-center gap-3">
