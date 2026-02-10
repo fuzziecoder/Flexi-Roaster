@@ -6,16 +6,24 @@ import { useRef, useState } from 'react';
 import { useUIStore } from '@/store/uiStore';
 
 export function Settings() {
-    const { user } = useAuth();
-    const { uploadAvatar, uploading, error: uploadError } = useAvatarUpload();
+    const { user, updateProfile } = useAuth();
+    const { uploadAvatar, removeAvatar, uploading, error: uploadError } = useAvatarUpload();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [successMessage, setSuccessMessage] = useState('');
     const { theme, setTheme } = useUIStore();
 
     // Get user display info
-    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
     const userEmail = user?.email || 'user@example.com';
     const userAvatar = user?.user_metadata?.avatar_url;
+
+    const [displayName, setDisplayName] = useState(
+        user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
+    );
+
+    // Keep displayName in sync if user object changes (e.g. after profile update)
+    useEffect(() => {
+        setDisplayName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || '');
+    }, [user?.user_metadata?.full_name, user?.email]);
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -29,12 +37,41 @@ export function Settings() {
         const { error } = await uploadAvatar(file);
 
         if (!error) {
-            setSuccessMessage('Avatar updated successfully! Refresh to see changes.');
+            setSuccessMessage('Avatar updated successfully!');
             toast.success('Profile updated', 'Avatar has been updated successfully');
             setTimeout(() => window.location.reload(), 1000);
         } else {
             toast.error('Profile update failed', error);
         }
+    };
+
+    const handleRemoveAvatar = async () => {
+        setSuccessMessage('');
+        const { error } = await removeAvatar();
+
+        if (!error) {
+            setSuccessMessage('Avatar removed successfully!');
+            toast.success('Profile updated', 'Avatar has been removed');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            toast.error('Failed to remove avatar', error);
+        }
+    };
+
+    const handleSaveChanges = async () => {
+        setSaving(true);
+        setSuccessMessage('');
+
+        const { error } = await updateProfile({ full_name: displayName.trim() });
+
+        if (!error) {
+            setSuccessMessage('Profile saved successfully!');
+            toast.success('Profile updated', 'Your name has been updated');
+        } else {
+            toast.error('Failed to save profile', error.message);
+        }
+
+        setSaving(false);
     };
 
     return (
@@ -70,7 +107,7 @@ export function Settings() {
                                 {userAvatar ? (
                                     <img
                                         src={userAvatar}
-                                        alt={userName}
+                                        alt={displayName}
                                         className="w-16 h-16 rounded-full object-cover"
                                     />
                                 ) : (
@@ -86,14 +123,26 @@ export function Settings() {
                                         onChange={handleFileChange}
                                         className="hidden"
                                     />
-                                    <button
-                                        onClick={handleAvatarClick}
-                                        disabled={uploading}
-                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                    >
-                                        <Upload className="w-4 h-4" />
-                                        {uploading ? 'Uploading...' : 'Change Avatar'}
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleAvatarClick}
+                                            disabled={uploading}
+                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            {uploading ? 'Uploading...' : 'Change Avatar'}
+                                        </button>
+                                        {userAvatar && (
+                                            <button
+                                                onClick={handleRemoveAvatar}
+                                                disabled={uploading}
+                                                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
                                     <p className="text-xs text-white/40 mt-1">Max 2MB, JPG or PNG</p>
                                 </div>
                             </div>
@@ -101,9 +150,10 @@ export function Settings() {
                                 <label className="block text-sm font-medium text-white/70 mb-2">Name</label>
                                 <input
                                     type="text"
-                                    value={userName}
+                                    value={displayName}
+                                    onChange={(e) => setDisplayName(e.target.value)}
                                     className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded text-white focus:outline-none focus:border-white/20"
-                                    readOnly
+                                    placeholder="Enter your name"
                                 />
                             </div>
                             <div>
@@ -228,9 +278,13 @@ export function Settings() {
                 </div>
             </div>
 
-            <button className="btn btn-primary flex items-center gap-2">
+            <button
+                onClick={handleSaveChanges}
+                disabled={saving}
+                className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
                 <Save className="w-4 h-4" />
-                Save Changes
+                {saving ? 'Saving...' : 'Save Changes'}
             </button>
         </div>
     );
