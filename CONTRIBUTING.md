@@ -43,7 +43,7 @@ Violations may result in temporary or permanent bans from the project.
    ```
 3. **Set up the upstream remote**:
    ```bash
-   git remote add upstream https://github.com/ORIGINAL_OWNER/Flexi-Roaster.git
+   git remote add upstream https://github.com/fuzziecoder/Flexi-Roaster.git
    ```
 4. **Install dependencies** following the [README.md](README.md) setup instructions
 
