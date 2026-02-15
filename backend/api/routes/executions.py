@@ -3,7 +3,7 @@ Execution management API routes.
 Handles pipeline execution and execution monitoring.
 """
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
-from typing import Dict
+from typing import Dict, List
 import uuid
 
 from backend.api.schemas import (

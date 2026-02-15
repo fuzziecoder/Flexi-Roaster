@@ -30,6 +30,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request/Response logging middleware
+if settings.LOG_REQUESTS:
+    from backend.api.middleware.logging_middleware import RequestLoggingMiddleware
+    app.add_middleware(RequestLoggingMiddleware)
 
 # Exception handlers
 @app.exception_handler(Exception)

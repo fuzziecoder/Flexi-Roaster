@@ -2,8 +2,7 @@
 Configuration settings for FlexiRoaster backend.
 """
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
-from typing import List, Optional, Union
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -35,6 +34,10 @@ class Settings(BaseSettings):
     
     # Logging
     LOG_LEVEL: str = "INFO"
+    LOG_REQUESTS: bool = True
+    LOG_REQUEST_BODY: bool = False
+    LOG_RESPONSE_BODY: bool = False
+    SENSITIVE_FIELDS: List[str] = ["password", "token", "secret", "api_key", "authorization", "credit_card", "ssn"]
     
     class Config:
         env_file = ".env"

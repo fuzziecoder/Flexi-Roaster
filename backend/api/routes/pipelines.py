@@ -3,7 +3,7 @@ Pipeline management API routes.
 Handles CRUD operations for pipelines.
 """
 from fastapi import APIRouter, HTTPException, status
-from typing import List
+from typing import List, Dict
 import uuid
 from datetime import datetime
 

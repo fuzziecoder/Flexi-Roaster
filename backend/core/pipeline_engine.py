@@ -6,7 +6,7 @@ import yaml
 import json
 import uuid
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from datetime import datetime
 
 from backend.models.pipeline import Pipeline, Stage, StageType, Execution, ExecutionStatus, LogLevel
@@ -80,7 +80,7 @@ class PipelineEngine:
         return pipeline
     
     @staticmethod
-    def validate_pipeline(pipeline: Pipeline) -> tuple[bool, List[str]]:
+    def validate_pipeline(pipeline: Pipeline) -> Tuple[bool, List[str]]:
         """
         Validate a pipeline definition.
         
