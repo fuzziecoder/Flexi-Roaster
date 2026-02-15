@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand';
 import { useEffect } from 'react';
-import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle, CircleX, AlertTriangle, Info, X } from 'lucide-react';
 
 // Toast types
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -61,7 +61,7 @@ export const toast = {
 // Icon mapping - smaller sizes
 const iconMap = {
     success: CheckCircle,
-    error: XCircle,
+    error: CircleX,
     warning: AlertTriangle,
     info: Info
 };
