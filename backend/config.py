@@ -2,7 +2,8 @@
 Configuration settings for FlexiRoaster backend.
 """
 from pydantic_settings import BaseSettings
-from typing import Optional
+from pydantic import field_validator
+from typing import List, Optional, Union
 
 
 class Settings(BaseSettings):
@@ -15,7 +16,15 @@ class Settings(BaseSettings):
     
     # API
     API_PREFIX: str = "/api"
-    CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS_ORIGINS from a comma-separated string or return list as-is."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
     
     # Database
     DATABASE_URL: str = "sqlite:///./flexiroaster.db"
@@ -30,6 +39,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 # Global settings instance
