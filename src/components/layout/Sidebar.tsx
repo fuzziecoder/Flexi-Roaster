@@ -108,6 +108,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                             <NavLink
                                 key={item.to}
                                 to={item.to}
+                                onClick={() => {
+                                    // Auto-close sidebar on mobile when a nav item is clicked
+                                    if (window.innerWidth < 1024) {
+                                        onToggle();
+                                    }
+                                }}
                                 className={({ isActive }) =>
                                     `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                   ${isActive
