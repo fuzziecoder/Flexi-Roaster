@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Search, User, X, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Bell, Search, User, X, AlertTriangle, CheckCircle, Info, Menu } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 
@@ -52,7 +52,11 @@ const colorMap = {
     info: 'text-blue-400',
 };
 
-export function TopBar() {
+interface TopBarProps {
+    onToggleSidebar?: () => void;
+}
+
+export function TopBar({ onToggleSidebar }: TopBarProps) {
     const { user } = useAuth();
     const [showNotifications, setShowNotifications] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>(sampleNotifications);
@@ -85,7 +89,17 @@ export function TopBar() {
     };
 
     return (
-        <header className="h-16 border-b border-white/10 bg-[hsl(var(--card))] flex items-center justify-between px-6">
+        <header className="h-16 border-b border-white/10 bg-[hsl(var(--card))] flex items-center justify-between px-4 md:px-6 gap-3">
+            {/* Mobile Sidebar Toggle */}
+            <button
+                onClick={onToggleSidebar}
+                className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
+                aria-label="Toggle navigation menu"
+                id="mobile-sidebar-toggle"
+            >
+                <Menu className="w-5 h-5 text-white/70" />
+            </button>
+
             {/* Search */}
             <div className="flex-1 max-w-xl">
                 <div className="relative">
