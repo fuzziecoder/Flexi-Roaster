@@ -1,0 +1,302 @@
+{
+  "repo_notes": [
+    {
+      "content": ""
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Introduce FlexiRoaster, its purpose as an intelligent pipeline automation framework, and provide a high-level overview of the system architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Getting Started",
+      "purpose": "Guide users through initial setup, installation, and configuration of both frontend and backend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Frontend Setup",
+      "purpose": "Detail frontend installation, environment configuration, and development server setup",
+      "parent": "Getting Started",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Backend Setup",
+      "purpose": "Detail backend installation, environment variables, and configuration management with Pydantic",
+      "parent": "Getting Started",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Architecture",
+      "purpose": "Provide comprehensive overview of system architecture, technology stack, and design patterns",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "System Overview",
+      "purpose": "Explain the three-tier architecture, data flow between frontend/backend, and external service integrations",
+      "parent": "Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Frontend Architecture",
+      "purpose": "Detail React component hierarchy, state management strategy, routing, and styling system",
+      "parent": "Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Backend Architecture",
+      "purpose": "Explain FastAPI structure, API routing, pipeline engine, and AI system components",
+      "parent": "Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Frontend",
+      "purpose": "Comprehensive documentation of frontend components, pages, hooks, and styling",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Styling & Theming",
+      "purpose": "Document the monochrome theme system, CSS variables, Tailwind configuration, utility classes, and animations",
+      "parent": "Frontend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "UI State Management",
+      "purpose": "Explain Zustand stores for sidebar, theme, search, and modal state management",
+      "parent": "Frontend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Layout Components",
+      "purpose": "Document DashboardLayout, Sidebar, TopBar, and their responsive behavior",
+      "parent": "Frontend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Page Components",
+      "purpose": "Document Dashboard, Pipelines, Executions, Settings, Logs, and other page-level components",
+      "parent": "Frontend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Common Components",
+      "purpose": "Document reusable components like Toast notifications, modals, cards, and badges",
+      "parent": "Frontend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Authentication & User Management",
+      "purpose": "Document authentication hooks, avatar upload functionality, and Supabase integration",
+      "parent": "Frontend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Backend",
+      "purpose": "Comprehensive documentation of backend API, pipeline engine, configuration, and AI system",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Configuration System",
+      "purpose": "Document Pydantic settings, environment variable loading, and configuration hierarchy",
+      "parent": "Backend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "API Endpoints",
+      "purpose": "Document all REST API endpoints including pipelines, executions, metrics, logs, and alerts",
+      "parent": "Backend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Pipeline Engine",
+      "purpose": "Document pipeline parsing, validation, stage execution, and dependency resolution",
+      "parent": "Backend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Real-time Communication",
+      "purpose": "Document WebSocket integration, Socket.IO events, and real-time execution updates",
+      "parent": "Backend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "AI System",
+      "purpose": "Document AI-powered failure prediction, risk scoring, insights generation, and recommendations",
+      "parent": "Backend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Middleware & Logging",
+      "purpose": "Document middleware components, CORS configuration, request/response logging, and sensitive field redaction",
+      "parent": "Backend",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Features",
+      "purpose": "Document major features from user perspective including pipelines, executions, monitoring, and settings",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Pipeline Management",
+      "purpose": "Document creating, editing, validating, and managing pipeline definitions",
+      "parent": "Features",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Execution Management",
+      "purpose": "Document triggering executions, monitoring progress, viewing logs, and canceling runs",
+      "parent": "Features",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "AI Insights & Predictions",
+      "purpose": "Document AI-powered failure prediction, risk scoring, performance insights, and optimization recommendations",
+      "parent": "Features",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Logs & Alerts",
+      "purpose": "Document log viewing, filtering, export functionality, and alert management",
+      "parent": "Features",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "User Settings & Profile",
+      "purpose": "Document user profile management, avatar upload/removal, display name changes, and notification preferences",
+      "parent": "Features",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Development Guide",
+      "purpose": "Guide for contributors including setup, workflow, commit conventions, and PR requirements",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Contributing Guidelines",
+      "purpose": "Document Apertre'26 participation, issue workflow, branch naming, commit conventions, and PR tagging",
+      "parent": "Development Guide",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
