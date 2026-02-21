@@ -24,6 +24,15 @@ class ExecutionStatusSchema(str, Enum):
     CANCELLED = "cancelled"
 
 
+class AirflowCallbackTypeSchema(str, Enum):
+    """Supported callback event types from Airflow."""
+    SUCCESS = "success"
+    FAILURE = "failure"
+    RETRY = "retry"
+    RUNNING = "running"
+    CANCELLED = "cancelled"
+
+
 class LogLevelSchema(str, Enum):
     """Log levels"""
     DEBUG = "DEBUG"
@@ -96,6 +105,26 @@ class ExecutionCreate(BaseModel):
     pipeline_id: str
 
 
+class AirflowTriggerRequest(BaseModel):
+    """Schema for triggering an execution from Apache Airflow."""
+    pipeline_id: str
+    dag_id: str
+    dag_run_id: str
+    task_id: Optional[str] = None
+    run_conf: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AirflowCallbackRequest(BaseModel):
+    """Schema for processing Airflow run callbacks."""
+    execution_id: str
+    callback_type: AirflowCallbackTypeSchema
+    dag_id: str
+    dag_run_id: str
+    task_id: Optional[str] = None
+    message: Optional[str] = None
+    error: Optional[str] = None
+
+
 class LogEntryResponse(BaseModel):
     """Schema for log entry response"""
     id: str
@@ -121,6 +150,7 @@ class ExecutionResponse(BaseModel):
     stages_completed: int
     total_stages: int
     duration: Optional[float]
+    context: Dict[str, Any] = Field(default_factory=dict)
     
     class Config:
         from_attributes = True

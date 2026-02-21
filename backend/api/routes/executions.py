@@ -3,7 +3,7 @@ Execution management API routes.
 Handles pipeline execution and execution monitoring.
 """
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 import uuid
 
 from backend.api.schemas import (
@@ -25,14 +25,37 @@ executions_db: Dict[str, Execution] = {}
 from backend.api.routes.pipelines import pipelines_db
 
 
+def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = None) -> Execution:
+    """Create and store a pending execution record."""
+    from datetime import datetime
+
+    execution_id = f"exec-{uuid.uuid4()}"
+    pipeline = pipelines_db[pipeline_id]
+    execution = Execution(
+        id=execution_id,
+        pipeline_id=pipeline_id,
+        status=ExecutionStatus.PENDING,
+        started_at=datetime.now(),
+        total_stages=len(pipeline.stages),
+        context=context or {}
+    )
+    executions_db[execution_id] = execution
+    return execution
+
+
 async def execute_pipeline_background(pipeline_id: str, execution_id: str):
     """Background task to execute pipeline"""
     try:
         pipeline = pipelines_db[pipeline_id]
         executor = PipelineExecutor()
-        execution = executor.execute(pipeline)
-        execution.id = execution_id  # Use the pre-assigned ID
-        executions_db[execution_id] = execution
+        result = executor.execute(pipeline)
+
+        if execution_id in executions_db:
+            existing_context = executions_db[execution_id].context.copy()
+            result.context.update(existing_context)
+
+        result.id = execution_id  # Use the pre-assigned ID
+        executions_db[execution_id] = result
     except Exception as e:
         # Update execution with error
         if execution_id in executions_db:
@@ -64,25 +87,13 @@ async def create_execution(
         )
     
     # Create execution record
-    execution_id = f"exec-{uuid.uuid4()}"
-    pipeline = pipelines_db[execution_data.pipeline_id]
-    
-    from datetime import datetime
-    execution = Execution(
-        id=execution_id,
-        pipeline_id=execution_data.pipeline_id,
-        status=ExecutionStatus.PENDING,
-        started_at=datetime.now(),
-        total_stages=len(pipeline.stages)
-    )
-    
-    executions_db[execution_id] = execution
+    execution = initialize_execution(execution_data.pipeline_id)
     
     # Start execution in background
     background_tasks.add_task(
         execute_pipeline_background,
         execution_data.pipeline_id,
-        execution_id
+        execution.id
     )
     
     return execution
