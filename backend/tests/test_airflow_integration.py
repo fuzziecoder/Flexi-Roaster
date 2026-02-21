@@ -100,3 +100,39 @@ def test_airflow_callback_enforces_secret_when_configured():
         assert exc_info.value.status_code == 401
     finally:
         settings.AIRFLOW_CALLBACK_SECRET = original_secret
+
+
+
+def test_background_execution_preserves_airflow_callback_metadata_and_status():
+    pipeline_id = _seed_pipeline()
+    tasks = BackgroundTasks()
+
+    execution = asyncio.run(
+        trigger_from_airflow(
+            AirflowTriggerRequest(pipeline_id=pipeline_id, dag_id="dag-a", dag_run_id="run-a"),
+            tasks,
+        )
+    )
+
+    # Simulate callback arriving before background task finishes.
+    asyncio.run(
+        airflow_callback(
+            AirflowCallbackRequest(
+                execution_id=execution.id,
+                callback_type="failure",
+                dag_id="dag-a",
+                dag_run_id="run-a",
+                message="airflow marked run failed",
+            ),
+            None,
+        )
+    )
+
+    # Now finish queued background execution.
+    for task in tasks.tasks:
+        asyncio.run(task())
+
+    updated = executions_db[execution.id]
+    assert updated.status.value == "failed"
+    assert updated.context["airflow"]["last_callback_type"] == "failure"
+    assert any("airflow marked run failed" in log.message for log in updated.logs)
