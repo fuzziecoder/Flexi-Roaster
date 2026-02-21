@@ -3,7 +3,7 @@ Execution management API routes.
 Handles pipeline execution and execution monitoring.
 """
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 import uuid
 
 from backend.api.schemas import (
@@ -24,17 +24,80 @@ executions_db: Dict[str, Execution] = {}
 # Import pipelines_db from pipelines route
 from backend.api.routes.pipelines import pipelines_db
 
+TERMINAL_STATUSES = {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED}
+
+
+def _merge_execution_context(result_context: Dict[str, Any], existing_context: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge contexts with special handling for nested Airflow metadata."""
+    merged = result_context.copy()
+    merged.update(existing_context)
+
+    if "airflow" in result_context or "airflow" in existing_context:
+        airflow_context: Dict[str, Any] = {}
+        airflow_context.update(result_context.get("airflow", {}))
+        airflow_context.update(existing_context.get("airflow", {}))
+        merged["airflow"] = airflow_context
+
+    return merged
+
+
+def _merge_execution_logs(result_logs: List, existing_logs: List) -> List:
+    """Keep existing trigger/callback logs while avoiding duplicates."""
+    merged_logs: List = []
+    seen_ids = set()
+
+    for log in existing_logs + result_logs:
+        if log.id in seen_ids:
+            continue
+        seen_ids.add(log.id)
+        merged_logs.append(log)
+
+    return merged_logs
+
+
+def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = None) -> Execution:
+    """Create and store a pending execution record."""
+    from datetime import datetime
+
+    execution_id = f"exec-{uuid.uuid4()}"
+    pipeline = pipelines_db[pipeline_id]
+    execution = Execution(
+        id=execution_id,
+        pipeline_id=pipeline_id,
+        status=ExecutionStatus.PENDING,
+        started_at=datetime.now(),
+        total_stages=len(pipeline.stages),
+        context=context or {}
+    )
+    executions_db[execution_id] = execution
+    return execution
+
 
 async def execute_pipeline_background(pipeline_id: str, execution_id: str):
-    """Background task to execute pipeline"""
+    """Background task to execute pipeline."""
     try:
         pipeline = pipelines_db[pipeline_id]
         executor = PipelineExecutor()
-        execution = executor.execute(pipeline)
-        execution.id = execution_id  # Use the pre-assigned ID
-        executions_db[execution_id] = execution
+        result = executor.execute(pipeline)
+
+        existing = executions_db.get(execution_id)
+        if existing:
+            result.context = _merge_execution_context(result.context, existing.context)
+            result.logs = _merge_execution_logs(result.logs, existing.logs)
+            result.started_at = existing.started_at
+
+            # If callbacks have already forced a terminal state, keep callback state.
+            if (
+                existing.status in TERMINAL_STATUSES
+                and existing.context.get("airflow", {}).get("last_callback_type")
+            ):
+                result.status = existing.status
+                result.completed_at = existing.completed_at
+                result.error = existing.error
+
+        result.id = execution_id
+        executions_db[execution_id] = result
     except Exception as e:
-        # Update execution with error
         if execution_id in executions_db:
             executions_db[execution_id].status = ExecutionStatus.FAILED
             executions_db[execution_id].error = str(e)
@@ -64,25 +127,13 @@ async def create_execution(
         )
     
     # Create execution record
-    execution_id = f"exec-{uuid.uuid4()}"
-    pipeline = pipelines_db[execution_data.pipeline_id]
-    
-    from datetime import datetime
-    execution = Execution(
-        id=execution_id,
-        pipeline_id=execution_data.pipeline_id,
-        status=ExecutionStatus.PENDING,
-        started_at=datetime.now(),
-        total_stages=len(pipeline.stages)
-    )
-    
-    executions_db[execution_id] = execution
+    execution = initialize_execution(execution_data.pipeline_id)
     
     # Start execution in background
     background_tasks.add_task(
         execute_pipeline_background,
         execution_data.pipeline_id,
-        execution_id
+        execution.id
     )
     
     return execution
