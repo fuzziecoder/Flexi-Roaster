@@ -350,7 +350,8 @@ export function IntegrationsPage() {
     const [configuringIntegration, setConfiguringIntegration] = useState<Integration | null>(null);
     const [integrations, setIntegrations] = useState<Integration[]>(availableIntegrations);
 
-    const handleConnect = (id: string, _credentials: Record<string, string>) => {
+    const handleConnect = (id: string, credentials: Record<string, string>) => {
+        void credentials;
         setIntegrations(prev => prev.map(i =>
             i.id === id
                 ? { ...i, isConnected: true, lastSync: new Date().toISOString() }
