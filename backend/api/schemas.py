@@ -24,6 +24,15 @@ class ExecutionStatusSchema(str, Enum):
     CANCELLED = "cancelled"
 
 
+class AirflowCallbackTypeSchema(str, Enum):
+    """Supported callback event types from Airflow."""
+    SUCCESS = "success"
+    FAILURE = "failure"
+    RETRY = "retry"
+    RUNNING = "running"
+    CANCELLED = "cancelled"
+
+
 class LogLevelSchema(str, Enum):
     """Log levels"""
     DEBUG = "DEBUG"
@@ -108,6 +117,7 @@ class AirflowTriggerRequest(BaseModel):
 class AirflowCallbackRequest(BaseModel):
     """Schema for processing Airflow run callbacks."""
     execution_id: str
+    callback_type: AirflowCallbackTypeSchema
     callback_type: str = Field(description="success, failure, retry, running, cancelled")
     dag_id: str
     dag_run_id: str

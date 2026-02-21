@@ -3,7 +3,7 @@ Execution management API routes.
 Handles pipeline execution and execution monitoring.
 """
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 import uuid
 
 from backend.api.schemas import (
@@ -25,6 +25,7 @@ executions_db: Dict[str, Execution] = {}
 from backend.api.routes.pipelines import pipelines_db
 
 
+def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = None) -> Execution:
 def initialize_execution(pipeline_id: str, context: Dict = None) -> Execution:
     """Create and store a pending execution record."""
     from datetime import datetime

@@ -1,23 +1,25 @@
 """Airflow integration routes for external orchestration callbacks and triggers."""
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, status
 
 from backend.api.schemas import (
     AirflowCallbackRequest,
+    AirflowCallbackTypeSchema,
     AirflowTriggerRequest,
     ExecutionResponse,
     SuccessResponse,
 )
 from backend.config import settings
-from backend.models.pipeline import ExecutionStatus, LogLevel
+from backend.models.pipeline import Execution, ExecutionStatus, LogLevel
 
-from backend.api.routes.pipelines import pipelines_db
 from backend.api.routes.executions import (
     execute_pipeline_background,
     executions_db,
     initialize_execution,
 )
+from backend.api.routes.pipelines import pipelines_db
 
 router = APIRouter(prefix="/airflow", tags=["airflow"])
 
@@ -62,6 +64,25 @@ async def trigger_from_airflow(trigger_data: AirflowTriggerRequest, background_t
     return execution
 
 
+def _validate_execution_lineage(execution: Execution, callback: AirflowCallbackRequest) -> None:
+    """Ensure callback dag/run pair matches the execution's original Airflow trigger."""
+    airflow_context = execution.context.get("airflow", {})
+    expected_dag_id = airflow_context.get("dag_id")
+    expected_dag_run_id = airflow_context.get("dag_run_id")
+
+    if expected_dag_id and callback.dag_id != expected_dag_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"DAG mismatch for execution {execution.id}: expected {expected_dag_id}, got {callback.dag_id}",
+        )
+
+    if expected_dag_run_id and callback.dag_run_id != expected_dag_run_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"DAG run mismatch for execution {execution.id}: expected {expected_dag_run_id}, got {callback.dag_run_id}",
+        )
+
+
 @router.post(
     "/callback",
     response_model=SuccessResponse,
@@ -69,7 +90,7 @@ async def trigger_from_airflow(trigger_data: AirflowTriggerRequest, background_t
 )
 async def airflow_callback(
     callback: AirflowCallbackRequest,
-    x_airflow_secret: str = Header(default=None),
+    x_airflow_secret: Optional[str] = Header(default=None),
 ):
     """Update execution status from Airflow callback events."""
     if settings.AIRFLOW_CALLBACK_SECRET and x_airflow_secret != settings.AIRFLOW_CALLBACK_SECRET:
@@ -82,27 +103,28 @@ async def airflow_callback(
             detail=f"Execution not found: {callback.execution_id}",
         )
 
-    callback_type = callback.callback_type.lower()
-    if callback_type == "success":
+    callback_type = callback.callback_type.value
+    _validate_execution_lineage(execution, callback)
+
+    if callback_type == AirflowCallbackTypeSchema.SUCCESS.value:
         execution.status = ExecutionStatus.COMPLETED
         execution.completed_at = datetime.now()
-    elif callback_type == "failure":
+        execution.error = None
+    elif callback_type == AirflowCallbackTypeSchema.FAILURE.value:
         execution.status = ExecutionStatus.FAILED
         execution.completed_at = datetime.now()
         execution.error = callback.error or callback.message or "Airflow reported failure"
-    elif callback_type == "running":
+    elif callback_type == AirflowCallbackTypeSchema.RUNNING.value:
         execution.status = ExecutionStatus.RUNNING
-    elif callback_type == "cancelled":
+        execution.completed_at = None
+    elif callback_type == AirflowCallbackTypeSchema.CANCELLED.value:
         execution.status = ExecutionStatus.CANCELLED
         execution.completed_at = datetime.now()
-    elif callback_type == "retry":
+    elif callback_type == AirflowCallbackTypeSchema.RETRY.value:
         execution.status = ExecutionStatus.PENDING
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported callback_type: {callback.callback_type}",
-        )
+        execution.completed_at = None
 
+    execution.context.setdefault("triggered_by", "airflow")
     execution.context.setdefault("airflow", {})
     execution.context["airflow"].update(
         {
@@ -116,7 +138,7 @@ async def airflow_callback(
     )
 
     log_message = callback.message or f"Airflow callback received: {callback_type}"
-    log_level = LogLevel.ERROR if callback_type == "failure" else LogLevel.INFO
+    log_level = LogLevel.ERROR if callback_type == AirflowCallbackTypeSchema.FAILURE.value else LogLevel.INFO
     execution.add_log(None, log_level, log_message)
 
     return SuccessResponse(message=f"Airflow callback processed for execution {callback.execution_id}")
