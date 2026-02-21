@@ -1,4 +1,4 @@
-import { User, Bell, Shield, Database, Palette, Save, Upload } from 'lucide-react';
+import { User, Bell, Shield, Database, Palette, Save, Upload, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
 import { toast } from '@/components/common';
@@ -9,6 +9,7 @@ export function Settings() {
     const { uploadAvatar, removeAvatar, uploading, error: uploadError } = useAvatarUpload();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [successMessage, setSuccessMessage] = useState('');
+    const [saving, setSaving] = useState(false);
 
     // Get user display info
     const userEmail = user?.email || 'user@example.com';
@@ -18,10 +19,6 @@ export function Settings() {
         user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
     );
 
-    // Keep displayName in sync if user object changes (e.g. after profile update)
-    useEffect(() => {
-        setDisplayName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || '');
-    }, [user?.user_metadata?.full_name, user?.email]);
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
