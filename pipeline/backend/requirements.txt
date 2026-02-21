@@ -1,7 +1,7 @@
 # FastAPI Framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+python-multipart==0.0.22
 
 # Database
 sqlalchemy==2.0.23
@@ -17,7 +17,7 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 
 # AI/ML
-scikit-learn==1.3.2
+scikit-learn==1.5.0
 numpy==1.26.2
 pandas==2.1.3
 
