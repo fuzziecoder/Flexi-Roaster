@@ -118,6 +118,7 @@ class AirflowCallbackRequest(BaseModel):
     """Schema for processing Airflow run callbacks."""
     execution_id: str
     callback_type: AirflowCallbackTypeSchema
+    callback_type: str = Field(description="success, failure, retry, running, cancelled")
     dag_id: str
     dag_run_id: str
     task_id: Optional[str] = None
