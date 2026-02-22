@@ -21,6 +21,15 @@ Continuously monitor and normalize pipeline signals so downstream AI services ca
 
 4. **Monitoring Engine (`ai/monitoring_engine.py`)**
    - Maintains sliding-window telemetry state per pipeline.
+   - Extracts error signatures (e.g., timeout, auth failure, schema mismatch).
+   - Emits error pattern payloads into the same ingest endpoint.
+
+3. **Metrics Stream Adapter**
+   - Consumes CPU, memory, throughput, and latency metrics.
+   - Correlates by `pipeline_id` + `execution_id`.
+
+4. **Monitoring Engine (`ai/monitoring_engine.py`)**
+   - Maintains sliding window telemetry state per pipeline.
    - Computes health KPIs:
      - execution duration trend
      - failure rate + stage failures
@@ -155,3 +164,10 @@ Implemented in `ai/failure_prediction.py`:
 5. Improve model quality with periodic retraining.
 
 This architecture enables production-grade, AI-assisted, automated pipeline operations.
+### Automation Hook
+The monitoring snapshot can be polled by an orchestration worker that applies runbooks:
+- high failure rate + repeated pattern -> retry/backoff + ticket
+- latency spike + high CPU -> scale worker pool
+- throughput drop + retry burst -> pause non-critical stages
+
+This creates the foundation for fully automated, self-healing pipeline operations.
