@@ -1,2 +1,2 @@
 """API Routes module initialization"""
-from api.routes import pipelines, executions, health
+from api.routes import pipelines, executions, health, monitoring
