@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/common';
 import { toast } from '@/components/common/Toast';
 import { usePipelines } from '@/hooks/usePipelines';
@@ -31,6 +31,8 @@ interface Schedule {
     createdAt: string;
 }
 
+const SCHEDULES_STORAGE_KEY = 'flexiroaster:schedules';
+
 const typeIcons = {
     cron: Clock,
     interval: RefreshCw,
@@ -60,6 +62,49 @@ function formatRelativeTime(dateStr: string | null): string {
     if (minutes < 60) return future ? `in ${minutes}m` : `${minutes}m ago`;
     if (hours < 24) return future ? `in ${hours}h` : `${hours}h ago`;
     return future ? `in ${days}d` : `${days}d ago`;
+}
+
+function calculateNextRun(type: Schedule['type'], expression: string): string | null {
+    const now = new Date();
+
+    if (type === 'interval') {
+        const match = expression.trim().match(/(\d+)\s*(minute|minutes|hour|hours|day|days)/i);
+        if (!match) return null;
+        const count = Number(match[1]);
+        const unit = match[2].toLowerCase();
+        const next = new Date(now);
+
+        if (unit.startsWith('minute')) next.setMinutes(next.getMinutes() + count);
+        if (unit.startsWith('hour')) next.setHours(next.getHours() + count);
+        if (unit.startsWith('day')) next.setDate(next.getDate() + count);
+        return next.toISOString();
+    }
+
+    if (type === 'cron') {
+        // Basic cron support for the common "minute hour * * *" pattern.
+        const cronMatch = expression.trim().match(/^(\*|\d{1,2})\s+(\*|\d{1,2})\s+\*\s+\*\s+\*$/);
+        if (!cronMatch) return null;
+
+        const [, minuteToken, hourToken] = cronMatch;
+        const minute = minuteToken === '*' ? now.getMinutes() + 1 : Number(minuteToken);
+        const hour = hourToken === '*' ? now.getHours() : Number(hourToken);
+
+        const next = new Date(now);
+        next.setSeconds(0, 0);
+        next.setMinutes(Math.min(minute, 59));
+        next.setHours(Math.min(hour, 23));
+
+        if (next <= now || minuteToken === '*') {
+            next.setMinutes(next.getMinutes() + (minuteToken === '*' ? 1 : 60 * 24));
+        }
+        if (hourToken === '*' && next <= now) {
+            next.setHours(next.getHours() + 1);
+        }
+
+        return next.toISOString();
+    }
+
+    return null;
 }
 
 // New Schedule Modal
@@ -205,7 +250,17 @@ function NewScheduleModal({
     );
 }
 
-function ScheduleCard({ schedule, onDelete }: { schedule: Schedule; onDelete: (id: string) => void }) {
+function ScheduleCard({
+    schedule,
+    onDelete,
+    onToggleActive,
+    onRunNow,
+}: {
+    schedule: Schedule;
+    onDelete: (id: string) => void;
+    onToggleActive: (id: string) => void;
+    onRunNow: (id: string) => void;
+}) {
     const [showMenu, setShowMenu] = useState(false);
     const TypeIcon = typeIcons[schedule.type];
 
@@ -240,11 +295,23 @@ function ScheduleCard({ schedule, onDelete }: { schedule: Schedule; onDelete: (i
                                 <button className="w-full px-3 py-2 text-left text-xs text-white/60 hover:bg-white/5 flex items-center gap-2">
                                     <Edit2 className="w-3 h-3" /> Edit
                                 </button>
-                                <button className="w-full px-3 py-2 text-left text-xs text-white/60 hover:bg-white/5 flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        onToggleActive(schedule.id);
+                                        setShowMenu(false);
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-xs text-white/60 hover:bg-white/5 flex items-center gap-2"
+                                >
                                     {schedule.isActive ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                                     {schedule.isActive ? 'Pause' : 'Resume'}
                                 </button>
-                                <button className="w-full px-3 py-2 text-left text-xs text-white/60 hover:bg-white/5 flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        onRunNow(schedule.id);
+                                        setShowMenu(false);
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-xs text-white/60 hover:bg-white/5 flex items-center gap-2"
+                                >
                                     <Play className="w-3 h-3" /> Run Now
                                 </button>
                                 <button
@@ -296,12 +363,29 @@ export function SchedulesPage() {
     const [showNewModal, setShowNewModal] = useState(false);
     const [schedules, setSchedules] = useState<Schedule[]>([]);
 
+    useEffect(() => {
+        const stored = localStorage.getItem(SCHEDULES_STORAGE_KEY);
+        if (!stored) return;
+        try {
+            const parsed = JSON.parse(stored) as Schedule[];
+            if (Array.isArray(parsed)) {
+                setSchedules(parsed);
+            }
+        } catch {
+            localStorage.removeItem(SCHEDULES_STORAGE_KEY);
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem(SCHEDULES_STORAGE_KEY, JSON.stringify(schedules));
+    }, [schedules]);
+
     const handleSaveSchedule = (scheduleData: Omit<Schedule, 'id' | 'lastRun' | 'nextRun' | 'createdAt'>) => {
         const newSchedule: Schedule = {
             ...scheduleData,
             id: `sch-${Date.now()}`,
             lastRun: null,
-            nextRun: new Date(Date.now() + 3600000).toISOString(),
+            nextRun: calculateNextRun(scheduleData.type, scheduleData.expression),
             createdAt: new Date().toISOString(),
         };
         setSchedules(prev => [newSchedule, ...prev]);
@@ -313,9 +397,33 @@ export function SchedulesPage() {
         toast.success('Schedule deleted');
     };
 
-    const filteredSchedules = filter === 'all'
-        ? schedules
-        : schedules.filter(s => s.type === filter);
+    const handleToggleActive = (id: string) => {
+        setSchedules((prev) => prev.map((s) => {
+            if (s.id !== id) return s;
+            const isActive = !s.isActive;
+            return {
+                ...s,
+                isActive,
+                nextRun: isActive ? calculateNextRun(s.type, s.expression) : null,
+            };
+        }));
+    };
+
+    const handleRunNow = (id: string) => {
+        setSchedules((prev) => prev.map((s) => {
+            if (s.id !== id) return s;
+            return {
+                ...s,
+                lastRun: new Date().toISOString(),
+                nextRun: s.isActive ? calculateNextRun(s.type, s.expression) : null,
+            };
+        }));
+        toast.success('Schedule triggered', 'Pipeline execution has been queued');
+    };
+
+    const filteredSchedules = useMemo(() => (
+        filter === 'all' ? schedules : schedules.filter(s => s.type === filter)
+    ), [filter, schedules]);
 
     const stats = {
         total: schedules.length,
@@ -421,6 +529,8 @@ export function SchedulesPage() {
                             key={schedule.id}
                             schedule={schedule}
                             onDelete={handleDeleteSchedule}
+                            onToggleActive={handleToggleActive}
+                            onRunNow={handleRunNow}
                         />
                     ))}
                 </div>

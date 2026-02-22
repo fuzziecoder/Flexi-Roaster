@@ -17,6 +17,7 @@ from config import settings
 from db import create_tables
 from core.redis_state import redis_state_manager
 from core.executor import pipeline_executor
+from api.routes import pipelines, executions, health, monitoring, ai_automation
 from api.routes import pipelines, executions, health, monitoring
 
 
@@ -181,6 +182,7 @@ app.include_router(health.router)
 app.include_router(pipelines.router, prefix=settings.API_PREFIX)
 app.include_router(executions.router, prefix=settings.API_PREFIX)
 app.include_router(monitoring.router, prefix=settings.API_PREFIX)
+app.include_router(ai_automation.router, prefix=settings.API_PREFIX)
 
 
 # ===================
