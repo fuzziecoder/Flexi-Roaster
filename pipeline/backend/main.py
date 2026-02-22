@@ -18,6 +18,7 @@ from db import create_tables
 from core.redis_state import redis_state_manager
 from core.executor import pipeline_executor
 from api.routes import pipelines, executions, health, monitoring, ai_automation
+from api.routes import pipelines, executions, health, monitoring
 
 
 # ===================
