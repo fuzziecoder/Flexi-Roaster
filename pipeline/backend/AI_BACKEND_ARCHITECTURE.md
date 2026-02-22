@@ -1,9 +1,9 @@
 # FlexiRoaster AI Backend Architecture (Self-Healing Pipelines)
 
 ## 1) Pipeline Monitoring Engine
-- Inputs: Supabase execution rows, execution logs, metrics stream.
-- Output: rolling per-pipeline snapshot (`duration`, `failures`, `retries`, `cpu/memory`, `throughput`, `latency`, error patterns).
-- API:
+- **Inputs:** Supabase execution rows, stage/execution logs, infra metrics.
+- **Output:** rolling per-pipeline snapshots (`duration`, `failure_rate`, `retries`, `cpu/memory`, `throughput`, `latency`, dominant error signatures).
+- **APIs:**
   - `POST /api/monitoring/ingest`
   - `GET /api/monitoring/{pipeline_id}/snapshot`
 
@@ -15,282 +15,125 @@ Implemented in `ai/anomaly_detection.py`.
 - abnormal data volume
 - sudden failure spikes
 - abnormal resource usage
-- log pattern anomalies
+- error-pattern bursts
 
-### Algorithms
-- **Isolation Forest** for unsupervised multivariate outlier detection.
-- **Statistical methods** (z-score against baseline mean/std; threshold rules).
-- **Pattern scoring** for log anomaly intensity from unique error signatures.
+### Methods
+- **Isolation Forest** for unsupervised multivariate anomalies.
+- **Z-score + deterministic rules** for explainable threshold breaches.
+- **Pattern scoring** for repeated error signatures.
 
-### Feature extraction
-- `execution_time_s`, `data_volume_mb`, `failure_count_1h`, `cpu_percent`, `memory_percent`, `retry_count`, `error_pattern_score`.
-
-### Training flow
-1. Build historical telemetry dataset.
-2. Normalize feature vectors.
-3. Fit baseline stats (mean/std) for statistical checks.
-4. Train Isolation Forest.
-5. Version model + metadata.
-
-### Online inference
-1. Runtime payload to `/api/ai/anomaly/detect`.
-2. Compute feature vector.
-3. Combine Isolation Forest prediction + z-score/rules.
-4. Return anomaly decision with score + reasons.
+### Online inference flow
+1. Event ingested via monitoring API.
+2. Feature vector built (`execution_time_s`, `failure_count_1h`, `cpu_percent`, etc.).
+3. Hybrid scorer computes anomaly score + reasons.
+4. API returns `is_anomaly`, `score`, `reasons`, and recommended guardrail action.
 
 ## 3) Failure Prediction Engine
 Implemented in `ai/failure_prediction.py`.
 
-### Predictions
+### Outputs
 - pipeline failure probability
-
-### Goal
-Continuously monitor and normalize pipeline signals so downstream AI services can predict failures, detect anomalies, and trigger remediation actions.
-
-### Components
-1. **Supabase Change Consumer**
-   - Pulls pipeline execution rows (status, duration, retries, stage failures).
-   - Sends normalized events to Monitoring API (`/api/monitoring/ingest`).
-
-2. **Log Pattern Extractor**
-   - Parses execution/stage logs.
-   - Extracts error signatures (timeout, auth failure, schema mismatch, dependency error).
-   - Emits error-pattern features and stage errors to monitoring/anomaly services.
-
-3. **Metrics Stream Adapter**
-   - Consumes CPU, memory, throughput, and latency metrics.
-   - Correlates by `pipeline_id` + `execution_id` + `stage_id`.
-
-4. **Monitoring Engine (`ai/monitoring_engine.py`)**
-   - Maintains sliding-window telemetry state per pipeline.
-   - Extracts error signatures (e.g., timeout, auth failure, schema mismatch).
-   - Emits error pattern payloads into the same ingest endpoint.
-
-3. **Metrics Stream Adapter**
-   - Consumes CPU, memory, throughput, and latency metrics.
-   - Correlates by `pipeline_id` + `execution_id`.
-
-4. **Monitoring Engine (`ai/monitoring_engine.py`)**
-   - Maintains sliding window telemetry state per pipeline.
-   - Computes health KPIs:
-     - execution duration trend
-     - failure rate + stage failures
-     - retry frequency
-     - avg CPU/memory
-     - throughput changes
-     - latency spikes
-     - dominant error patterns
-
-5. **Snapshot API (`/api/monitoring/{pipeline_id}/snapshot`)**
-   - Returns pre-aggregated metrics/signals for dashboard + automation workflows.
-
-### Data Flow
-```text
-Supabase executions ─┐
-Execution logs ──────┼──> Normalizer/Adapters ──> Monitoring ingest API
-Metrics stream ──────┘                                │
-                                                       v
-                                           Sliding-window Monitoring Engine
-                                                       │
-                            ┌──────────────────────────┴────────────────────────┐
-                            v                                                   v
-                     Dashboard AI insights                            Auto-remediation planner
-```
-
----
-
-## 2) Anomaly Detection System
-
-### What is detected
-- unusual execution time
-- abnormal data volume
-- sudden failure spikes
-- abnormal CPU/memory usage
-- log pattern anomalies
-
-### Algorithms
-The backend uses a **hybrid approach** in `ai/anomaly_detection.py`:
-1. **Isolation Forest (unsupervised)**
-   - Finds rare/outlier points in multivariate telemetry without labels.
-   - Ideal for unknown/novel anomalies.
-2. **Statistical detection (z-score / threshold rules)**
-   - Detects strong deviations from baseline (`|z| >= 3`).
-   - Enforces deterministic safety checks for retry bursts and log anomalies.
-3. **Pattern scoring**
-   - Error-log signature diversity converted into `error_pattern_score`.
-
-### Feature extraction
-Per event, extract:
-- `execution_time_s`
-- `data_volume_mb`
-- `failure_count_1h`
-- `cpu_percent`
-- `memory_percent`
-- `retry_count`
-- `error_pattern_score` (derived from unique stage error signatures)
-
-### Training flow
-1. Pull historical telemetry from Supabase + metrics store.
-2. Normalize to event schema.
-3. Build baseline mean/std stats for key metrics.
-4. Train Isolation Forest on feature matrix.
-5. Persist model artifacts + metadata (version, training window, contamination).
-
-### Online inference pipeline
-1. Runtime event enters `/api/ai/anomaly/detect`.
-2. Feature extractor builds vector.
-3. Inference executes:
-   - Isolation Forest score/prediction
-   - z-score checks vs baseline
-   - rule checks for retry burst/log-pattern anomalies
-4. Return `is_anomaly`, `score`, `reasons`, `algorithm`.
-5. Orchestrator consumes result and executes remediation runbook (retry, scale, pause, rollback).
-
----
-
-## 3) Failure Prediction Engine
-
-### Predictions produced
-- pipeline-level failure probability
 - execution success probability
 - stage-level risk scores
 
-### Inputs
-- historical outcomes (`failed` labels)
-- recent error count / retry frequency
-- pipeline config (`stage_count`, `critical_stage_count`)
-- system load (`avg_cpu_percent`, `avg_memory_percent`)
-
-### Model design
-- **Primary**: Gradient Boosting Classifier.
-- **Fallback**: heuristic weighted risk model if ML model/artifact unavailable.
-- **Stage risk**: combines pipeline risk + stage retries + stage failure history + criticality.
-
-### Training strategy
-- time-split train/validation
-- evaluate ROC-AUC, precision for failure-alert class, calibration
-- progressive deployment: shadow -> canary -> full rollout
+### Model strategy
+- **Primary:** Gradient Boosting classifier.
+- **Fallback:** deterministic heuristic risk model when model artifact/dependencies are unavailable.
+- **Rollout:** shadow -> canary -> full.
 
 ## 4) Root Cause Analysis Engine
 Implemented in `ai/root_cause_engine.py`, exposed via `/api/ai/root-cause/analyze`.
 
 ### Detectable causes
 - failing stage
-- connection issues
+- connection/auth issues
 - resource bottlenecks
-- data inconsistencies
-- configuration errors
+- schema/data inconsistencies
+- configuration drift
 
-### Fusion logic (logs + metrics + history)
-- **Logs**: keyword/signal extraction for timeout, schema, permission/config, connectivity classes.
-- **Metrics**: high CPU/memory and latency spikes as resource/network evidence.
-- **History**: recurring stage failures, recent deployments, prior incident patterns.
-- Final decision = strongest cause evidence + contributing factors + confidence score.
+### Fusion logic
+Logs + metrics + historical recurrence are merged into a confidence-scored root cause decision and contributing factors.
 
-## 5) Self-Healing Engine (Automatic Fixes)
+## 5) Self-Healing Engine
 Implemented in `ai/self_healing_engine.py`, exposed via `/api/ai/self-healing/plan`.
 
-### Safe automatic actions
+### Automatic actions
 - retry failed stage
 - restart worker
 - increase timeout
-- scale resources
+- scale worker resources
 - switch fallback service
-- parallelize pipeline stages (safe mode)
+- rollback to known-good config
 
-### Decision rules
-- Start with lowest-risk action (retry).
-- Branch by primary cause:
-  - connection -> restart worker + fallback service
-  - resource bottleneck -> scale + timeout increase
-  - data inconsistency -> conservative timeout/guarded re-run
-  - config error -> known-good config fallback
-- Parallelization allowed only for low/medium risk and marked parallelizable workloads.
-
-### Risk thresholds
-- low `<0.6`
-- medium `0.6-<0.8`
-- high `>=0.8`
-
-### Rollback strategy
-- restore previous timeout/resource config snapshot
-- restore baseline worker pool
-- revert service routing to primary
-
-### Human approval mode
-- enabled explicitly (`human_approval_mode=true`) or forced when risk is high.
+### Safety policy
+- Apply lowest-risk action first.
+- Force human approval for high-risk actions.
+- Persist pre-change snapshot for deterministic rollback.
 
 ## 6) Recommendation Engine
 Implemented in `ai/recommendation_engine.py`, exposed via `/api/ai/recommendations`.
 
-### Recommendation types
+### Recommendation classes
 - optimize execution time
-- enable parallel stages
+- increase parallelism
+- tune retries/timeouts
 - scale workers
-- update configuration
 - improve resource allocation
 
-### Scoring and confidence
-Each recommendation returns:
-- `confidence` (0-1)
-- `impact_score` (0-100)
-- `priority_score = confidence * impact_score`
+Each recommendation includes `confidence`, `impact_score`, and `priority_score`.
 
-This enables deterministic ranking for dashboard + automation policy decisions.
-- historical execution outcomes
-- past error counts/signatures
-- pipeline topology/config (`stage_count`, `critical_stage_count`)
-- system load (`avg_cpu_percent`, `avg_memory_percent`)
-- retry behavior (`retry_frequency`)
+## 7) Learning Feedback Loop (Continuous Learning Pipeline)
+The system continuously learns from:
+- **Past failures:** failure labels, stage-level error signatures, infra saturation windows.
+- **Applied fixes:** which remediation action was selected (retry/scale/rollback/etc.).
+- **Execution outcomes:** whether the fix improved SLA, reduced retries, and prevented recurrence.
 
-### Model design
-Implemented in `ai/failure_prediction.py`:
-1. **Primary supervised model: Gradient Boosting Classifier**
-   - Learns nonlinear feature interactions.
-   - Outputs failure probability through `predict_proba`.
-2. **Heuristic fallback model**
-   - Weighted risk formula when model artifact/dependency unavailable.
-   - Keeps prediction service operational in degraded environments.
-3. **Stage risk decomposition**
-   - Pipeline probability + stage-specific multipliers:
-     - stage historical failure rate
-     - stage retry count
-     - critical-stage bonus
+### Closed-loop lifecycle
+1. **Collect:** ingest outcome events after each execution (pre-fix and post-fix snapshots).
+2. **Label:** produce training labels (`failed`, `recovered`, `false_alarm`, `action_effective`).
+3. **Featureize:** join telemetry + pipeline metadata + selected action into feature store records.
+4. **Train:** scheduled retraining jobs refresh anomaly, prediction, and recommendation models.
+5. **Evaluate:** compare against production baselines (AUC, precision@k, recovery lift, MTTR delta).
+6. **Promote:** register best model version and rollout progressively.
+7. **Observe:** capture live drift, regressions, and rollback automatically if quality drops.
 
-### Training strategy
-1. Build labeled dataset (`failed` boolean target).
-2. Time-split training/validation to avoid leakage.
-3. Calibrate probability thresholds for alerting and auto-remediation.
-4. Track metrics:
-   - ROC-AUC
-   - Precision@K for failure alerts
-   - Brier score for probability calibration
-5. Register model version and rollout gradually (shadow -> canary -> full).
+This creates a true self-improving pipeline where model quality and remediation policies evolve from real execution evidence.
 
-### Inference flow
-1. Trigger execution request or periodic preflight check.
-2. Call `/api/ai/prediction/predict` with execution context.
-3. Return:
-   - `failure_probability`
-   - `success_probability`
-   - `stage_risk_scores`
-   - `top_risk_factors`
-4. Policy engine decides whether to continue, gate, or apply preventive actions.
+## 8) AI Service Architecture (FastAPI + Supabase + Celery)
 
----
+### FastAPI service structure
+- `main.py`: app lifecycle, middleware, router registration.
+- `api/routes/*`: monitoring, prediction, root-cause, self-healing, recommendations.
+- `ai/*`: model logic and feature extraction modules.
+- `db/*`: persistence layer and Supabase/Postgres adapters.
+- `core/*`: orchestration, caching, execution control.
 
-## 4) Self-Healing Control Loop
-1. Monitor telemetry continuously.
-2. Detect anomalies and predict near-term failures.
-3. Choose safe actions (retry, skip non-critical, pause, rollback, terminate).
-4. Verify outcome and feed execution data back to training sets.
-5. Improve model quality with periodic retraining.
+### Model inference APIs
+- `POST /api/ai/anomaly/detect`
+- `POST /api/ai/prediction/predict`
+- `POST /api/ai/root-cause/analyze`
+- `POST /api/ai/self-healing/plan`
+- `GET /api/ai/recommendations`
 
-This architecture enables production-grade, AI-assisted, automated pipeline operations.
-### Automation Hook
-The monitoring snapshot can be polled by an orchestration worker that applies runbooks:
-- high failure rate + repeated pattern -> retry/backoff + ticket
-- latency spike + high CPU -> scale worker pool
-- throughput drop + retry burst -> pause non-critical stages
+### Training pipeline
+- Batch data extraction from Supabase telemetry/executions.
+- Feature materialization into feature store.
+- Scheduled training jobs (daily/weekly) with offline evaluation.
+- Model registry with versioned artifacts + metadata.
+- Progressive deployment with canary validation.
 
-This creates the foundation for fully automated, self-healing pipeline operations.
+### Feature store
+- **Offline store:** historical feature tables in Supabase/Postgres (for training).
+- **Online store/cache:** Redis for low-latency inference feature reads.
+- Shared feature definitions between training and serving to prevent skew.
+
+### Background workers (Celery)
+- Async tasks for retraining, backfills, drift checks, and notification fan-out.
+- Queue-based remediation workflows (retry orchestration, rollback execution).
+- Dead-letter queue + retry policy for resilient background processing.
+
+### Supabase integration
+- Use Supabase as source of truth for executions, logs, and user-scoped pipeline config.
+- Realtime subscriptions trigger event ingestion for near-real-time AI decisions.
+- Row-level security preserved for multi-tenant isolation.
+- Model outputs (risk score, root cause, action plan, confidence) written back to Supabase for dashboard and auditability.
