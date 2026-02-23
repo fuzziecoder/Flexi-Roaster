@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api"
     CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"
     AIRFLOW_CALLBACK_SECRET: Optional[str] = None
+    AIRFLOW_TRIGGER_SECRET: Optional[str] = None
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

@@ -1,5 +1,6 @@
 """Airflow integration routes for external orchestration callbacks and triggers."""
 from datetime import datetime
+from secrets import compare_digest
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, status
@@ -30,8 +31,17 @@ router = APIRouter(prefix="/airflow", tags=["airflow"])
     status_code=status.HTTP_202_ACCEPTED,
     summary="Trigger a pipeline run from Airflow",
 )
-async def trigger_from_airflow(trigger_data: AirflowTriggerRequest, background_tasks: BackgroundTasks):
+async def trigger_from_airflow(
+    trigger_data: AirflowTriggerRequest,
+    background_tasks: BackgroundTasks,
+    x_airflow_trigger_secret: Optional[str] = Header(default=None),
+):
     """Create an execution from an Airflow DAG/task invocation."""
+    if settings.AIRFLOW_TRIGGER_SECRET and not (
+        x_airflow_trigger_secret and compare_digest(x_airflow_trigger_secret, settings.AIRFLOW_TRIGGER_SECRET)
+    ):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid trigger secret")
+
     if trigger_data.pipeline_id not in pipelines_db:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -93,7 +103,9 @@ async def airflow_callback(
     x_airflow_secret: Optional[str] = Header(default=None),
 ):
     """Update execution status from Airflow callback events."""
-    if settings.AIRFLOW_CALLBACK_SECRET and x_airflow_secret != settings.AIRFLOW_CALLBACK_SECRET:
+    if settings.AIRFLOW_CALLBACK_SECRET and not (
+        x_airflow_secret and compare_digest(x_airflow_secret, settings.AIRFLOW_CALLBACK_SECRET)
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid callback secret")
 
     execution = executions_db.get(callback.execution_id)
