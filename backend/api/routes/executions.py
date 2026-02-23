@@ -73,25 +73,6 @@ def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = N
     return execution
 
 
-def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = None) -> Execution:
-def initialize_execution(pipeline_id: str, context: Dict = None) -> Execution:
-    """Create and store a pending execution record."""
-    from datetime import datetime
-
-    execution_id = f"exec-{uuid.uuid4()}"
-    pipeline = pipelines_db[pipeline_id]
-    execution = Execution(
-        id=execution_id,
-        pipeline_id=pipeline_id,
-        status=ExecutionStatus.PENDING,
-        started_at=datetime.now(),
-        total_stages=len(pipeline.stages),
-        context=context or {}
-    )
-    executions_db[execution_id] = execution
-    return execution
-
-
 async def execute_pipeline_background(pipeline_id: str, execution_id: str):
     """Background task to execute pipeline."""
     try:
