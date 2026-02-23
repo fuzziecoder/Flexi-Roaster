@@ -39,6 +39,7 @@ def test_airflow_trigger_seeds_context_and_queues_background_tasks():
         trigger_from_airflow(
             AirflowTriggerRequest(pipeline_id=pipeline_id, dag_id="dag-a", dag_run_id="run-a", task_id="task-a"),
             tasks,
+            None,
         )
     )
 
@@ -53,6 +54,7 @@ def test_airflow_callback_rejects_mismatched_dag_run():
         trigger_from_airflow(
             AirflowTriggerRequest(pipeline_id=pipeline_id, dag_id="dag-a", dag_run_id="run-a"),
             BackgroundTasks(),
+            None,
         )
     )
 
@@ -78,6 +80,7 @@ def test_airflow_callback_enforces_secret_when_configured():
         trigger_from_airflow(
             AirflowTriggerRequest(pipeline_id=pipeline_id, dag_id="dag-a", dag_run_id="run-a"),
             BackgroundTasks(),
+            None,
         )
     )
 
@@ -103,6 +106,27 @@ def test_airflow_callback_enforces_secret_when_configured():
 
 
 
+def test_airflow_trigger_enforces_secret_when_configured():
+    pipeline_id = _seed_pipeline()
+
+    original_secret = settings.AIRFLOW_TRIGGER_SECRET
+    settings.AIRFLOW_TRIGGER_SECRET = "expected-trigger-secret"
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(
+                trigger_from_airflow(
+                    AirflowTriggerRequest(pipeline_id=pipeline_id, dag_id="dag-a", dag_run_id="run-a"),
+                    BackgroundTasks(),
+                    "wrong-secret",
+                )
+            )
+
+        assert exc_info.value.status_code == 401
+    finally:
+        settings.AIRFLOW_TRIGGER_SECRET = original_secret
+
+
+
 def test_background_execution_preserves_airflow_callback_metadata_and_status():
     pipeline_id = _seed_pipeline()
     tasks = BackgroundTasks()
@@ -111,6 +135,7 @@ def test_background_execution_preserves_airflow_callback_metadata_and_status():
         trigger_from_airflow(
             AirflowTriggerRequest(pipeline_id=pipeline_id, dag_id="dag-a", dag_run_id="run-a"),
             tasks,
+            None,
         )
     )
 
