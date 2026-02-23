@@ -81,3 +81,91 @@ async def generate_recommendations(payload: Dict[str, Any]):
     """Generate optimization recommendations with confidence and priority scoring."""
     recommendations = recommendation_engine.recommend(payload)
     return {"recommendations": recommendations}
+
+
+@router.post("/pipelines/auto-remediate", response_model=Dict[str, Any])
+async def automate_pipeline_remediation(payload: Dict[str, Any]):
+    """Run end-to-end automation: detect anomaly, predict risk, infer cause, and plan remediation."""
+    telemetry = payload.get("telemetry", {})
+    risk_features = payload.get("risk_features", {})
+    diagnostics = payload.get("diagnostics", {})
+
+    anomaly = anomaly_detection_engine.detect(telemetry)
+    prediction = failure_prediction_engine.predict(risk_features)
+
+    merged_diagnostics = {
+        "stages": diagnostics.get("stages", risk_features.get("stages", [])),
+        "logs": diagnostics.get("logs", []),
+        "metrics": diagnostics.get(
+            "metrics",
+            {
+                "cpu_percent": telemetry.get("cpu_percent", risk_features.get("avg_cpu_percent", 0)),
+                "memory_percent": telemetry.get("memory_percent", risk_features.get("avg_memory_percent", 0)),
+                "latency_spike": telemetry.get("duration_seconds", 0) > 180,
+            },
+        ),
+        "history": diagnostics.get(
+            "history",
+            {
+                "same_stage_failures_last_7d": risk_features.get("recent_error_count", 0),
+                "recent_deployment": bool(payload.get("recent_deployment", False)),
+            },
+        ),
+    }
+
+    root_cause = root_cause_engine.analyze(merged_diagnostics)
+
+    remediation_input = {
+        "risk_score": max(anomaly.score, prediction.failure_probability),
+        "primary_cause": root_cause.primary_cause,
+        "failing_stage": root_cause.failing_stage,
+        "retry_count": telemetry.get("retry_count", 0),
+        "human_approval_mode": bool(payload.get("human_approval_mode", False)),
+        "parallelizable": bool(risk_features.get("parallelizable", False)),
+    }
+    self_healing = self_healing_engine.decide(remediation_input)
+
+    recommendations = recommendation_engine.recommend(
+        {
+            "avg_duration_seconds": telemetry.get("duration_seconds", 0),
+            "retry_frequency": risk_features.get("retry_frequency", 0),
+            "avg_cpu_percent": telemetry.get("cpu_percent", risk_features.get("avg_cpu_percent", 0)),
+            "avg_memory_percent": telemetry.get("memory_percent", risk_features.get("avg_memory_percent", 0)),
+            "stage_count": risk_features.get("stage_count", 0),
+            "parallelizable": risk_features.get("parallelizable", False),
+        }
+    )
+
+    return {
+        "automation_status": "approval_required"
+        if self_healing.requires_human_approval
+        else "auto_executable",
+        "anomaly": {
+            "is_anomaly": anomaly.is_anomaly,
+            "score": anomaly.score,
+            "reasons": anomaly.reasons,
+            "algorithm": anomaly.algorithm,
+        },
+        "prediction": {
+            "failure_probability": prediction.failure_probability,
+            "success_probability": prediction.success_probability,
+            "stage_risk_scores": prediction.stage_risk_scores,
+            "model_type": prediction.model_type,
+            "top_risk_factors": prediction.top_risk_factors,
+        },
+        "root_cause": {
+            "failing_stage": root_cause.failing_stage,
+            "primary_cause": root_cause.primary_cause,
+            "confidence": root_cause.confidence,
+            "evidence": root_cause.evidence,
+            "contributing_factors": root_cause.contributing_factors,
+        },
+        "self_healing_plan": {
+            "actions": self_healing.actions,
+            "risk_level": self_healing.risk_level,
+            "requires_human_approval": self_healing.requires_human_approval,
+            "rollback_plan": self_healing.rollback_plan,
+            "reason": self_healing.reason,
+        },
+        "recommendations": recommendations,
+    }
