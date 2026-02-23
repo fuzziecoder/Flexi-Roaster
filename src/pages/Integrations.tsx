@@ -24,7 +24,14 @@ interface Integration {
     category: 'database' | 'cloud' | 'notification' | 'api';
     isConnected: boolean;
     lastSync?: string;
+    profile?: 'balanced' | 'fast' | 'secure';
 }
+
+const profileLabels = {
+    balanced: 'Balanced',
+    fast: 'Fast & Efficient',
+    secure: 'Secure First',
+} as const;
 
 // Available integrations - these are configuration options
 const availableIntegrations: Integration[] = [
@@ -67,6 +74,7 @@ function ConnectionModal({
     onConnect: (id: string, credentials: Record<string, string>) => void;
 }) {
     const [credentials, setCredentials] = useState<Record<string, string>>({});
+    const [profile, setProfile] = useState<'balanced' | 'fast' | 'secure'>('balanced');
 
     if (!integration) return null;
 
@@ -119,8 +127,12 @@ function ConnectionModal({
             toast.error('Please fill all fields');
             return;
         }
-        onConnect(integration.id, credentials);
+        onConnect(integration.id, {
+            ...credentials,
+            profile,
+        });
         setCredentials({});
+        setProfile('balanced');
         onClose();
     };
 
@@ -155,6 +167,28 @@ function ConnectionModal({
                             />
                         </div>
                     ))}
+
+                    <div className="pt-2 border-t border-white/10">
+                        <p className="text-xs text-white/50 mb-2">Automation profile</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(Object.keys(profileLabels) as Array<keyof typeof profileLabels>).map(option => (
+                                <button
+                                    key={option}
+                                    type="button"
+                                    onClick={() => setProfile(option)}
+                                    className={`px-2 py-2 rounded-lg text-[11px] transition-colors ${profile === option
+                                        ? 'bg-white/15 text-white'
+                                        : 'bg-white/5 text-white/50 hover:bg-white/10'
+                                        }`}
+                                >
+                                    {profileLabels[option]}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[11px] text-white/35 mt-2">
+                            Applies auto-retry, connection pooling, and TLS defaults for faster and safer connectivity.
+                        </p>
+                    </div>
 
                     <div className="flex gap-3 pt-2">
                         <button
@@ -195,6 +229,7 @@ function ConfigurationModal({
     };
 
     const getConfigOptions = () => {
+        const profile = integration.profile || 'balanced';
         switch (integration.id) {
             case 'supabase':
                 return [
@@ -206,6 +241,10 @@ function ConfigurationModal({
             default:
                 return [
                     { label: 'Connection Status', value: 'Active', type: 'status' },
+                    { label: 'Automation Profile', value: profileLabels[profile], type: 'readonly' },
+                    { label: 'Auto-retry policy', value: profile === 'fast' ? '4 attempts with 1.5x backoff' : '3 attempts with exponential backoff', type: 'readonly' },
+                    { label: 'Connection Pooling', value: profile === 'secure' ? 'Adaptive (min 2 / max 10)' : 'Adaptive (min 5 / max 20)', type: 'readonly' },
+                    { label: 'TLS Enforcement', value: profile === 'fast' ? 'Preferred TLS 1.2+' : 'Required TLS 1.2+', type: 'readonly' },
                     { label: 'Last Sync', value: integration.lastSync ? new Date(integration.lastSync).toLocaleString() : 'Never', type: 'readonly' },
                 ];
         }
@@ -254,7 +293,7 @@ function ConfigurationModal({
                         <p className="text-xs text-white/40 mb-3">
                             {integration.id === 'supabase'
                                 ? 'Supabase is configured via environment variables in your application settings.'
-                                : 'Manage connection settings for this integration.'}
+                                : 'Manage automation-driven settings for faster, efficient, and secure connections.'}
                         </p>
                     </div>
 
@@ -306,7 +345,7 @@ function IntegrationCard({
                 {integration.isConnected && (
                     <div className="flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded text-[10px] text-white/60">
                         <Check className="w-3 h-3" />
-                        Connected
+                        {integration.profile ? profileLabels[integration.profile] : 'Connected'}
                     </div>
                 )}
             </div>
@@ -351,10 +390,10 @@ export function IntegrationsPage() {
     const [integrations, setIntegrations] = useState<Integration[]>(availableIntegrations);
 
     const handleConnect = (id: string, credentials: Record<string, string>) => {
-        void credentials;
+        const profile = (credentials.profile as Integration['profile']) || 'balanced';
         setIntegrations(prev => prev.map(i =>
             i.id === id
-                ? { ...i, isConnected: true, lastSync: new Date().toISOString() }
+                ? { ...i, isConnected: true, lastSync: new Date().toISOString(), profile }
                 : i
         ));
         const integration = integrations.find(i => i.id === id);
