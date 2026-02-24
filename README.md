@@ -114,6 +114,13 @@ FlexiRoaster combines:
 - **Vercel config** for frontend deployment (`vercel.json`)
 - **Airflow integration hooks** (`backend/api/routes/airflow.py`, `pipeline/airflow/`)
 
+### Recommended Modern Data Stack
+
+- **Data Ingestion**: Apache Kafka or Redpanda for streaming; Apache NiFi for ETL flows.
+- **Data Lake**: Amazon S3, Google Cloud Storage, or Azure Blob Storage.
+- **Data Warehouse**: Snowflake, BigQuery, or Amazon Redshift.
+- **Feature Store (ML)**: Feast or Tecton.
+
 ---
 
 ## Repository Layout
