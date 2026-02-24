@@ -18,7 +18,7 @@ from db import create_tables
 from core.redis_state import redis_state_manager
 from core.executor import pipeline_executor
 from api.routes import pipelines, executions, health, monitoring, ai_automation
-from api.routes import pipelines, executions, health, monitoring
+from observability import setup_observability
 
 
 # ===================
@@ -133,6 +133,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Configure metrics and error monitoring
+setup_observability(app)
 
 
 # ===================
