@@ -20,6 +20,26 @@ class Settings(BaseSettings):
     AIRFLOW_CALLBACK_SECRET: Optional[str] = None
     AIRFLOW_TRIGGER_SECRET: Optional[str] = None
 
+    # Security
+    JWT_SECRET_KEY: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ISSUER: str = "flexiroaster-api"
+    JWT_AUDIENCE: str = "flexiroaster-clients"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # RBAC / API protection
+    ENABLE_AUTH: bool = True
+
+    # Rate limiting
+    RATE_LIMIT_PER_MINUTE: int = 120
+
+    # Secret manager backend: env|vault
+    SECRET_BACKEND: str = "env"
+
+    # Optional enterprise IAM (Keycloak)
+    KEYCLOAK_ENABLED: bool = False
+    KEYCLOAK_ISSUER: Optional[str] = None
+    KEYCLOAK_CLIENT_ID: Optional[str] = None
     # Event-driven architecture (Kafka)
     ENABLE_EVENT_STREAMING: bool = False
     KAFKA_BOOTSTRAP_SERVERS: Union[str, List[str]] = "localhost:9092"
