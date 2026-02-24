@@ -92,6 +92,34 @@ def check_backend_health(**context) -> bool:
         raise Exception(f"Backend health check failed: {e}")
 
 
+def _trigger_via_compatible_endpoints(pipeline_id: str, payload: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+    """Trigger execution against the available backend contract.
+
+    Tries the newer Airflow-specific endpoint first, then falls back to the
+    pipeline backend execution endpoint used by docker-compose stack.
+    """
+    airflow_trigger_url = f"{BACKEND_URL}{API_PREFIX}/airflow/trigger"
+    legacy_execute_url = f"{BACKEND_URL}{API_PREFIX}/executions"
+
+    try:
+        response = requests.post(airflow_trigger_url, json=payload, headers=headers, timeout=60)
+        if response.status_code != 404:
+            response.raise_for_status()
+            return response.json()
+        print("Airflow trigger endpoint not found; falling back to /executions")
+    except requests.exceptions.HTTPError:
+        raise
+
+    legacy_payload = {
+        "pipeline_id": pipeline_id,
+        "variables": payload.get("run_conf", {}),
+        "triggered_by": "airflow",
+    }
+    response = requests.post(legacy_execute_url, json=legacy_payload, headers={"Content-Type": "application/json"}, timeout=60)
+    response.raise_for_status()
+    return response.json()
+
+
 def trigger_pipeline_execution(**context) -> Dict[str, Any]:
     """
     Trigger pipeline execution via REST API.
@@ -108,6 +136,12 @@ def trigger_pipeline_execution(**context) -> Dict[str, Any]:
         "task_id": context["task"].task_id,
         "run_conf": context.get("params", {}).get("variables", {}),
     }
+
+    headers = {"Content-Type": "application/json"}
+    if TRIGGER_SECRET:
+        headers["X-Airflow-Trigger-Secret"] = TRIGGER_SECRET
+
+    }
     
     headers = {
         "Content-Type": "application/json",
@@ -117,17 +151,8 @@ def trigger_pipeline_execution(**context) -> Dict[str, Any]:
     
     try:
         print(f"Triggering pipeline execution: {pipeline_id}")
-        print(f"URL: {execution_url}")
-        
-        response = requests.post(
-            execution_url,
-            json=payload,
-            headers=headers,
-            timeout=60
-        )
-        response.raise_for_status()
-        
-        result = response.json()
+
+        result = _trigger_via_compatible_endpoints(pipeline_id, payload, headers)
         print(f"Pipeline execution triggered: {result}")
         
         # Store execution info in XCom for downstream tasks
@@ -151,6 +176,7 @@ def wait_for_execution_completion(**context) -> Dict[str, Any]:
         key="execution_result"
     )
     
+    execution_id = execution_result.get("id") or execution_result.get("execution_id")
     execution_id = execution_result.get("id")
     if not execution_id:
         print("No execution ID found, pipeline was started asynchronously")
@@ -196,6 +222,7 @@ def send_callback(callback_type: str, **context) -> None:
     callback_url = f"{BACKEND_URL}{API_PREFIX}/airflow/callback"
     
     execution_result = context["ti"].xcom_pull(task_ids="trigger_pipeline", key="execution_result") or {}
+    execution_id = execution_result.get("id") or execution_result.get("execution_id")
     execution_id = execution_result.get("id")
 
     if not execution_id:
@@ -210,6 +237,8 @@ def send_callback(callback_type: str, **context) -> None:
         "callback_type": callback_type,
         "message": f"Airflow callback from task {context['task'].task_id}",
     }
+    if execution_id:
+        payload["execution_id"] = execution_id
     
     headers = {"Content-Type": "application/json"}
     if CALLBACK_SECRET:
