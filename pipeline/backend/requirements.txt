@@ -20,6 +20,12 @@ pydantic-settings==2.1.0
 scikit-learn==1.5.0
 numpy==1.26.2
 pandas==2.1.3
+bentoml==1.3.8
+feast==0.40.1
+kfp==2.9.0
+
+# Search & Analytics
+elasticsearch==8.15.1
 
 # Utilities
 python-dotenv==1.0.0
@@ -27,6 +33,8 @@ pyyaml==6.0.1
 httpx==0.25.2
 structlog==23.2.0
 tenacity==8.2.3
+sentry-sdk[fastapi]==2.19.2
+prometheus-fastapi-instrumentator==7.0.0
 
 # Async support
 anyio==4.1.0
@@ -34,3 +42,10 @@ anyio==4.1.0
 # Test dependencies
 pytest==8.3.3
 pytest-asyncio==0.24.0
+
+# Distributed execution
+celery==5.4.0
+kafka-python==2.0.2
+# gRPC internal service communication
+grpcio==1.65.5
+grpcio-tools==1.65.5

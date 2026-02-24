@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flexiroaster-worker
+  namespace: flexiroaster
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: flexiroaster-worker
+  template:
+    metadata:
+      labels:
+        app: flexiroaster-worker
+    spec:
+      nodeSelector:
+        workload: worker
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "worker"
+          effect: "NoSchedule"
+      containers:
+        - name: worker
+          image: ghcr.io/your-org/flexiroaster-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "backend.worker"]
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"

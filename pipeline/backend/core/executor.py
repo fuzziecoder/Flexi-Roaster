@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from config import settings
 from core.redis_state import redis_state_manager, ExecutionState
 from ai.safety_engine import ai_safety_engine, SafeAction, PipelineStats, RiskAssessment
+from core.distributed_execution import execution_dispatcher
 from db import (
     get_db, ExecutionDB, StageExecutionDB, LogDB, AIInsightDB,
     ExecutionCRUD, StageExecutionCRUD, LogCRUD, AIInsightCRUD, MetricCRUD,
@@ -250,6 +251,16 @@ class PipelineExecutor:
                 try:
                     # Execute stages
                     result = await self._execute_stages(context)
+                    execution_dispatcher.publish_event(
+                        "finished",
+                        {
+                            "pipeline_id": pipeline_id,
+                            "pipeline_name": pipeline_name,
+                            "triggered_by": triggered_by,
+                        },
+                        execution_id=execution_id,
+                        status=result.get("status"),
+                    )
                     return result
                     
                 finally:
@@ -266,6 +277,16 @@ class PipelineExecutor:
         except Exception as e:
             logger.error(f"Pipeline execution failed: {e}", exc_info=True)
             await self._mark_execution_failed(execution_id, str(e))
+            execution_dispatcher.publish_event(
+                "failed",
+                {
+                    "pipeline_id": pipeline_id,
+                    "pipeline_name": pipeline_name,
+                    "triggered_by": triggered_by,
+                },
+                execution_id=execution_id,
+                status="failed",
+            )
             return {
                 "success": False,
                 "execution_id": execution_id,

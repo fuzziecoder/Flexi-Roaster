@@ -14,6 +14,17 @@ pip install -r backend/requirements.txt
 
 ## Running the Backend
 
+### Core API Layer
+
+- **FastAPI** - High-performance Python API framework
+- **Uvicorn** - ASGI server for FastAPI
+- **Gunicorn** - Production process manager
+- **NGINX** - Reverse proxy, load balancing, and rate limiting
+
+### Optional Alternative
+
+- **Django** - Use when a full admin experience and enterprise-grade auth system are required
+
 ### Option 1: CLI Testing (Phase 1)
 
 Test pipeline execution from command line:
@@ -122,6 +133,31 @@ Copy `.env.example` to `.env` and customize:
 ```bash
 cp backend/.env.example backend/.env
 ```
+
+## Event-Driven Architecture (Advanced Setup)
+
+FlexiRoaster supports Kafka-backed domain events for loose coupling, high scalability, audit-friendly workflows, and real-time analytics.
+
+### Published topics
+- `pipeline.created`
+- `execution.started`
+- `execution.failed`
+- `execution.completed`
+
+### Enable Kafka publishing
+Set the following environment variables in `backend/.env`:
+
+```env
+ENABLE_EVENT_STREAMING=true
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+KAFKA_CLIENT_ID=flexiroaster-backend
+TOPIC_PIPELINE_CREATED=pipeline.created
+TOPIC_EXECUTION_STARTED=execution.started
+TOPIC_EXECUTION_FAILED=execution.failed
+TOPIC_EXECUTION_COMPLETED=execution.completed
+```
+
+If Kafka is unavailable, the backend falls back to structured application logs for events so local development continues to work.
 
 ## Next Steps
 

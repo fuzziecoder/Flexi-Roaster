@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     KEYCLOAK_ENABLED: bool = False
     KEYCLOAK_ISSUER: Optional[str] = None
     KEYCLOAK_CLIENT_ID: Optional[str] = None
+    # Event-driven architecture (Kafka)
+    ENABLE_EVENT_STREAMING: bool = False
+    KAFKA_BOOTSTRAP_SERVERS: Union[str, List[str]] = "localhost:9092"
+    KAFKA_CLIENT_ID: str = "flexiroaster-backend"
+
+    TOPIC_PIPELINE_CREATED: str = "pipeline.created"
+    TOPIC_EXECUTION_STARTED: str = "execution.started"
+    TOPIC_EXECUTION_FAILED: str = "execution.failed"
+    TOPIC_EXECUTION_COMPLETED: str = "execution.completed"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -47,6 +56,14 @@ class Settings(BaseSettings):
         """Parse CORS_ORIGINS from a comma-separated string or return list as-is."""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+
+    @field_validator("KAFKA_BOOTSTRAP_SERVERS", mode="before")
+    @classmethod
+    def parse_kafka_bootstrap_servers(cls, v):
+        """Parse KAFKA_BOOTSTRAP_SERVERS from comma-separated values or return list as-is."""
+        if isinstance(v, str):
+            return [server.strip() for server in v.split(",") if server.strip()]
         return v
     
     # Database
