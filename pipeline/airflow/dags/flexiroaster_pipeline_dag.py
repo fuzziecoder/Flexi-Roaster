@@ -126,6 +126,8 @@ def trigger_pipeline_execution(**context) -> Dict[str, Any]:
     Returns execution details.
     """
     pipeline_id = context.get("params", {}).get("pipeline_id", PIPELINE_ID)
+    execution_url = f"{BACKEND_URL}{API_PREFIX}/airflow/trigger"
+    
     # Prepare execution payload
     payload = {
         "pipeline_id": pipeline_id,
@@ -139,6 +141,14 @@ def trigger_pipeline_execution(**context) -> Dict[str, Any]:
     if TRIGGER_SECRET:
         headers["X-Airflow-Trigger-Secret"] = TRIGGER_SECRET
 
+    }
+    
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if TRIGGER_SECRET:
+        headers["X-Airflow-Trigger-Secret"] = TRIGGER_SECRET
+    
     try:
         print(f"Triggering pipeline execution: {pipeline_id}")
 
@@ -167,6 +177,7 @@ def wait_for_execution_completion(**context) -> Dict[str, Any]:
     )
     
     execution_id = execution_result.get("id") or execution_result.get("execution_id")
+    execution_id = execution_result.get("id")
     if not execution_id:
         print("No execution ID found, pipeline was started asynchronously")
         return {"status": "accepted"}
@@ -212,8 +223,14 @@ def send_callback(callback_type: str, **context) -> None:
     
     execution_result = context["ti"].xcom_pull(task_ids="trigger_pipeline", key="execution_result") or {}
     execution_id = execution_result.get("id") or execution_result.get("execution_id")
+    execution_id = execution_result.get("id")
+
+    if not execution_id:
+        print("Skipping callback: no execution ID found in XCom")
+        return
 
     payload = {
+        "execution_id": execution_id,
         "dag_id": context["dag"].dag_id,
         "dag_run_id": context["run_id"],
         "task_id": context["task"].task_id,
