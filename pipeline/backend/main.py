@@ -17,8 +17,11 @@ from config import settings
 from db import create_tables
 from core.redis_state import redis_state_manager
 from core.executor import pipeline_executor
+from api.routes import pipelines, executions, health, monitoring, ai_automation, microservices
+from api.routes import ai_automation, executions, health, model_infra, monitoring, pipelines
 from api.routes import pipelines, executions, health, monitoring, ai_automation
 from core.elasticsearch_client import elasticsearch_manager
+from observability import setup_observability
 
 
 # ===================
@@ -139,6 +142,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Configure metrics and error monitoring
+setup_observability(app)
+
 
 # ===================
 # Exception Handlers
@@ -188,6 +194,8 @@ app.include_router(pipelines.router, prefix=settings.API_PREFIX)
 app.include_router(executions.router, prefix=settings.API_PREFIX)
 app.include_router(monitoring.router, prefix=settings.API_PREFIX)
 app.include_router(ai_automation.router, prefix=settings.API_PREFIX)
+app.include_router(microservices.router, prefix=settings.API_PREFIX)
+app.include_router(model_infra.router, prefix=settings.API_PREFIX)
 
 
 # ===================

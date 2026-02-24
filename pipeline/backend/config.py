@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     AI_ANOMALY_ERROR_THRESHOLD: int = 5  # Errors before anomaly
     
     # ===================
+    # AI/Model Infrastructure
+    # ===================
+    FEAST_REPO_PATH: str = "./feature_repo"
+    KUBEFLOW_HOST: str = "http://localhost:3000"
+
+    # ===================
     # Logging Settings
     # ===================
     LOG_LEVEL: str = "INFO"
@@ -108,6 +114,14 @@ class Settings(BaseSettings):
     ELASTICSEARCH_LOGS_INDEX: str = "flexiroaster-execution-logs"
     ELASTICSEARCH_REQUEST_TIMEOUT: int = 10
     
+    # ===================
+    # Observability Settings
+    # ===================
+    SENTRY_DSN: str = ""
+    SENTRY_ENVIRONMENT: str = "development"
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
+
     # ===================
     # Airflow Integration
     # ===================
