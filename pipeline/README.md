@@ -7,6 +7,10 @@ A production-ready pipeline automation system built with:
 - **Redis** - State management, locks, caching
 - **PostgreSQL** - Persistence
 - **AI Safety Module** - Failure prediction & anomaly handling
+- **BentoML + Feast + Kubeflow** - End-to-end model infrastructure
+- **Prometheus + Grafana** - Metrics collection and dashboards
+- **ELK Stack (Elasticsearch, Logstash, Kibana)** - Centralized logging
+- **Sentry** - Error monitoring and tracing
 
 ## Architecture Overview
 
@@ -46,6 +50,22 @@ A production-ready pipeline automation system built with:
 - **Runtime Anomaly Detection**: Detects time spikes and error bursts
 - **Safe Action Selection**: Chooses safest action (retry → skip → pause → rollback → terminate)
 - **Explainable AI**: All decisions include explanations
+
+
+### AI & Model Infrastructure
+- **FastAPI + BentoML** endpoints for packaging and listing production model bundles
+- **Feast** endpoints for feature view discovery, online retrieval, and materialization
+- **Kubeflow Pipelines** endpoints for compiling and submitting ML workflows
+
+Core API routes are available under `/api/model-infra`:
+- `GET /overview`
+- `GET /features/views`
+- `POST /features/online`
+- `POST /features/materialize`
+- `GET /bentoml/bentos`
+- `POST /bentoml/build`
+- `POST /kubeflow/compile`
+- `POST /kubeflow/submit`
 
 ### State Management (Redis)
 - Distributed execution locks
@@ -98,6 +118,10 @@ docker-compose up -d
 | FastAPI Docs | http://localhost:8000/api/docs | - |
 | PostgreSQL | localhost:5432 | airflow / airflow |
 | Redis | localhost:6379 | - |
+| Prometheus | http://localhost:9090 | - |
+| Grafana | http://localhost:3000 | admin / admin |
+| Kibana | http://localhost:5601 | - |
+| Elasticsearch | http://localhost:9200 | - |
 
 ### 4. Create Your First Pipeline
 
@@ -176,6 +200,26 @@ curl -X POST http://localhost:8000/api/executions/pipeline-xxx/execute
 | GET | `/metrics` | Dashboard metrics |
 | GET | `/insights` | AI insights |
 
+
+## Observability & Monitoring
+
+### Metrics (Prometheus)
+- Backend exposes Prometheus metrics at `/metrics` via `prometheus-fastapi-instrumentator`.
+- Prometheus scrapes `backend:8000/metrics` every 15 seconds.
+
+### Dashboards (Grafana)
+- Grafana runs on port `3000` and can connect to Prometheus (`http://prometheus:9090`) as a data source.
+- Default credentials are `admin/admin` (change in production).
+
+### Centralized Logging (ELK Stack)
+- Elasticsearch stores indexed logs.
+- Logstash listens on `5000` (TCP JSON) and `5044` (beats) and forwards to Elasticsearch.
+- Kibana provides visualization for indices like `flexiroaster-backend-*`.
+
+### Error Monitoring (Sentry)
+- Configure `SENTRY_DSN` to enable Sentry for FastAPI exception capture and tracing.
+- Optional tuning: `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, and `SENTRY_PROFILES_SAMPLE_RATE`.
+
 ## Configuration
 
 ### Environment Variables
@@ -188,6 +232,9 @@ curl -X POST http://localhost:8000/api/executions/pipeline-xxx/execute
 | `EXECUTOR_STAGE_TIMEOUT` | `120` | Stage timeout in seconds |
 | `AI_BLOCK_HIGH_RISK` | `false` | Block high-risk executions |
 | `AI_RISK_THRESHOLD_HIGH` | `0.7` | High risk threshold |
+| `SENTRY_DSN` | `""` | Enables Sentry when set |
+| `SENTRY_ENVIRONMENT` | `development` | Sentry environment label |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Fraction of traced requests |
 
 ### Airflow Variables
 

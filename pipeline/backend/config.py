@@ -84,12 +84,26 @@ class Settings(BaseSettings):
     AI_ANOMALY_ERROR_THRESHOLD: int = 5  # Errors before anomaly
     
     # ===================
+    # AI/Model Infrastructure
+    # ===================
+    FEAST_REPO_PATH: str = "./feature_repo"
+    KUBEFLOW_HOST: str = "http://localhost:3000"
+
+    # ===================
     # Logging Settings
     # ===================
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"  # "json" or "text"
     LOG_FILE: Optional[str] = None
     
+    # ===================
+    # Observability Settings
+    # ===================
+    SENTRY_DSN: str = ""
+    SENTRY_ENVIRONMENT: str = "development"
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
+
     # ===================
     # Airflow Integration
     # ===================
