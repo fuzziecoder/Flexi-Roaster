@@ -43,6 +43,9 @@ anyio==4.1.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
 
+# Distributed execution
+celery==5.4.0
+kafka-python==2.0.2
 # gRPC internal service communication
 grpcio==1.65.5
 grpcio-tools==1.65.5
