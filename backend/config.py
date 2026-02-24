@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     CONTAINERIZATION: str = "Docker"
     ORCHESTRATION: str = "Kubernetes + KServe / Seldon Core"
 
+    # Data platform stack
+    DATA_INGESTION: str = "Apache Kafka / Redpanda (streaming), Apache NiFi (ETL)"
+    DATA_LAKE: str = "Amazon S3 / Google Cloud Storage / Azure Blob"
+    DATA_WAREHOUSE: str = "Snowflake / BigQuery / Amazon Redshift"
+    FEATURE_STORE: str = "Feast / Tecton"
+
     # Database
     DATABASE_URL: str = "sqlite:///./flexiroaster.db"
     

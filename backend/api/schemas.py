@@ -247,3 +247,19 @@ class DeploymentStackResponse(BaseModel):
     containerization: str
     orchestration: List[str]
     current: Dict[str, str]
+
+
+class PlatformOption(BaseModel):
+    """Data platform technology option metadata."""
+    name: str
+    category: str
+    description: str
+
+
+class DataPlatformStackResponse(BaseModel):
+    """Data platform stack details for ingestion and analytics workloads."""
+    ingestion_options: List[PlatformOption]
+    data_lake_options: List[PlatformOption]
+    data_warehouse_options: List[PlatformOption]
+    feature_store_options: List[PlatformOption]
+    current: Dict[str, str]

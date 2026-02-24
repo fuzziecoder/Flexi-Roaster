@@ -13,7 +13,7 @@ from backend.api.routes import pipelines, executions, metrics, airflow, observab
 from backend.api.routes import pipelines, executions, metrics, airflow, governance
 from backend.api.middleware.gateway_middleware import GatewayMiddleware
 from backend.api.security import get_current_auth_context
-from backend.api.routes import pipelines, executions, metrics, airflow, model_serving
+from backend.api.routes import pipelines, executions, metrics, airflow, model_serving, data_platform
 
 # Create FastAPI app
 app = FastAPI(
@@ -94,6 +94,7 @@ app.include_router(metrics.router, prefix=settings.API_PREFIX)
 app.include_router(airflow.router, prefix=settings.API_PREFIX)
 app.include_router(observability.router, prefix=settings.API_PREFIX)
 app.include_router(model_serving.router, prefix=settings.API_PREFIX)
+app.include_router(data_platform.router, prefix=settings.API_PREFIX)
 
 
 # Run server

@@ -70,6 +70,9 @@ Server will be available at:
 ### Model Serving & Deployment
 - `GET /api/model-serving` - Supported model-serving stack and current deployment config
 
+### Data Platform
+- `GET /api/data-platform` - Supported ingestion/lake/warehouse/feature-store stack and current backend config
+
 ## Example Usage
 
 ### Create a Pipeline
