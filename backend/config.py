@@ -20,6 +20,27 @@ class Settings(BaseSettings):
     AIRFLOW_CALLBACK_SECRET: Optional[str] = None
     AIRFLOW_TRIGGER_SECRET: Optional[str] = None
 
+    # Security
+    JWT_SECRET_KEY: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ISSUER: str = "flexiroaster-api"
+    JWT_AUDIENCE: str = "flexiroaster-clients"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # RBAC / API protection
+    ENABLE_AUTH: bool = True
+
+    # Rate limiting
+    RATE_LIMIT_PER_MINUTE: int = 120
+
+    # Secret manager backend: env|vault
+    SECRET_BACKEND: str = "env"
+
+    # Optional enterprise IAM (Keycloak)
+    KEYCLOAK_ENABLED: bool = False
+    KEYCLOAK_ISSUER: Optional[str] = None
+    KEYCLOAK_CLIENT_ID: Optional[str] = None
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):

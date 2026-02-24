@@ -91,6 +91,30 @@ curl -X POST http://localhost:8000/api/executions \
   -d '{"pipeline_id": "your-pipeline-id"}'
 ```
 
+
+## Authentication & Security
+
+- JWT authentication endpoint: `POST /api/auth/token`
+- RBAC roles: `admin`, `operator`, `viewer`
+- Rate limiting: IP-based sliding window using `RATE_LIMIT_PER_MINUTE`
+- Secret management abstraction via `SECRET_BACKEND` (`env` or `vault`)
+- Optional enterprise IAM metadata endpoint for Keycloak: `GET /api/auth/oidc/keycloak/config`
+
+Example token request:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+```
+
+Use token:
+
+```bash
+curl http://localhost:8000/api/pipelines \
+  -H "Authorization: Bearer <access_token>"
+```
+
 ## Configuration
 
 Copy `.env.example` to `.env` and customize:
