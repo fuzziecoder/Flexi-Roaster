@@ -21,6 +21,9 @@ scikit-learn==1.5.0
 numpy==1.26.2
 pandas==2.1.3
 
+# Search & Analytics
+elasticsearch==8.15.1
+
 # Utilities
 python-dotenv==1.0.0
 pyyaml==6.0.1

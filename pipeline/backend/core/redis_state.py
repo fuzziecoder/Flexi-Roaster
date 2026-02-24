@@ -110,6 +110,11 @@ class RedisStateManager:
     def is_available(self) -> bool:
         """Check if Redis is available"""
         return self._available
+
+    @property
+    def client(self) -> Optional[redis.Redis]:
+        """Expose Redis client for specialized operations."""
+        return self._client
     
     async def health_check(self) -> Dict[str, Any]:
         """Check Redis health status"""

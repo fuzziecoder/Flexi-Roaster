@@ -64,6 +64,26 @@ services:
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     restart: always
 
+
+  # Elasticsearch for execution log indexing and analytics
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: flexiroaster-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+    restart: always
+
   # FastAPI Backend
   backend:
     build:
@@ -94,12 +114,19 @@ services:
       
       # Logging
       LOG_LEVEL: INFO
+
+      # Elasticsearch
+      ELASTICSEARCH_ENABLED: "true"
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_LOGS_INDEX: flexiroaster-execution-logs
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     volumes:
       - ./backend:/app
@@ -201,6 +228,7 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  elasticsearch-data:
 
 networks:
   default:
