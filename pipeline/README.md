@@ -7,6 +7,7 @@ A production-ready pipeline automation system built with:
 - **Redis** - State management, locks, caching
 - **PostgreSQL** - Persistence
 - **AI Safety Module** - Failure prediction & anomaly handling
+- **BentoML + Feast + Kubeflow** - End-to-end model infrastructure
 
 ## Architecture Overview
 
@@ -46,6 +47,22 @@ A production-ready pipeline automation system built with:
 - **Runtime Anomaly Detection**: Detects time spikes and error bursts
 - **Safe Action Selection**: Chooses safest action (retry → skip → pause → rollback → terminate)
 - **Explainable AI**: All decisions include explanations
+
+
+### AI & Model Infrastructure
+- **FastAPI + BentoML** endpoints for packaging and listing production model bundles
+- **Feast** endpoints for feature view discovery, online retrieval, and materialization
+- **Kubeflow Pipelines** endpoints for compiling and submitting ML workflows
+
+Core API routes are available under `/api/model-infra`:
+- `GET /overview`
+- `GET /features/views`
+- `POST /features/online`
+- `POST /features/materialize`
+- `GET /bentoml/bentos`
+- `POST /bentoml/build`
+- `POST /kubeflow/compile`
+- `POST /kubeflow/submit`
 
 ### State Management (Redis)
 - Distributed execution locks
