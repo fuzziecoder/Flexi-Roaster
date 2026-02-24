@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { usePipelines } from '@/hooks/usePipelines';
+import { generatePipelineFromPrompt, type GeneratedPipelinePlan } from '@/lib/nlPipelineBuilder';
 
 interface CreatePipelineModalProps {
     isOpen: boolean;
@@ -18,6 +19,8 @@ export function CreatePipelineModal({ isOpen, onClose }: CreatePipelineModalProp
     const [stages, setStages] = useState<Stage[]>([{ name: '', order: 0 }]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [prompt, setPrompt] = useState('');
+    const [generatedPlan, setGeneratedPlan] = useState<GeneratedPipelinePlan | null>(null);
     const { createPipeline } = usePipelines();
 
     const handleAddStage = () => {
@@ -60,6 +63,16 @@ export function CreatePipelineModal({ isOpen, onClose }: CreatePipelineModalProp
                     name: s.name.trim(),
                     order: i,
                 })),
+                ...(generatedPlan
+                    ? {
+                        schedule: {
+                            cron: generatedPlan.cron,
+                            timezone: generatedPlan.timezone,
+                        },
+                        stage_config: generatedPlan.stages,
+                        generated_from_prompt: generatedPlan.config.generatedFromPrompt,
+                    }
+                    : {}),
             },
         } as any);
 
@@ -72,8 +85,24 @@ export function CreatePipelineModal({ isOpen, onClose }: CreatePipelineModalProp
             setName('');
             setDescription('');
             setStages([{ name: '', order: 0 }]);
+            setPrompt('');
+            setGeneratedPlan(null);
             onClose();
         }
+    };
+
+    const handleGenerateFromPrompt = () => {
+        setError('');
+        if (!prompt.trim()) {
+            setError('Please enter a natural language prompt first');
+            return;
+        }
+
+        const plan = generatePipelineFromPrompt(prompt);
+        setGeneratedPlan(plan);
+        setName(plan.name);
+        setDescription(plan.description);
+        setStages(plan.stages.map((stage, index) => ({ name: stage.name, order: index })));
     };
 
     if (!isOpen) return null;
@@ -94,6 +123,36 @@ export function CreatePipelineModal({ isOpen, onClose }: CreatePipelineModalProp
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    <div className="p-4 bg-white/5 border border-white/10 rounded-lg space-y-3">
+                        <label className="block text-sm font-medium text-white/80">
+                            Natural Language Pipeline Builder
+                        </label>
+                        <textarea
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded text-white focus:outline-none focus:border-white/20 transition-colors resize-none"
+                            placeholder='Example: "Create a pipeline that fetches data from S3, transforms with pandas, and stores in PostgreSQL daily at 9 AM."'
+                            rows={3}
+                        />
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs text-white/50">Generate structured pipeline JSON + schedule cron + stage config instantly.</p>
+                            <button
+                                type="button"
+                                onClick={handleGenerateFromPrompt}
+                                className="px-3 py-1.5 bg-blue-500/80 hover:bg-blue-500 text-white text-sm rounded transition-colors"
+                            >
+                                Generate Plan
+                            </button>
+                        </div>
+                        {generatedPlan && (
+                            <div className="rounded border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-200 space-y-2">
+                                <p><span className="text-green-300 font-medium">Cron:</span> {generatedPlan.cron} ({generatedPlan.config.schedule.humanReadable})</p>
+                                <p><span className="text-green-300 font-medium">Stages:</span> {generatedPlan.stages.map(stage => stage.name).join(' → ')}</p>
+                                <pre className="overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed text-green-100/90">{JSON.stringify(generatedPlan.config, null, 2)}</pre>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Error Message */}
                     {error && (
                         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
