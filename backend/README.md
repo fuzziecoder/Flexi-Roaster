@@ -63,6 +63,9 @@ Server will be available at:
 - `GET /api/metrics` - Current metrics
 - `GET /api/metrics/history` - Historical data
 
+### Model Serving & Deployment
+- `GET /api/model-serving` - Supported model-serving stack and current deployment config
+
 ## Example Usage
 
 ### Create a Pipeline

@@ -211,3 +211,18 @@ class SuccessResponse(BaseModel):
     """Schema for success responses"""
     message: str
     data: Optional[Dict[str, Any]] = None
+
+
+class ServingOption(BaseModel):
+    """Model serving option metadata."""
+    name: str
+    category: str
+    description: str
+
+
+class DeploymentStackResponse(BaseModel):
+    """Deployment stack details for model-serving workloads."""
+    serving_options: List[ServingOption]
+    containerization: str
+    orchestration: List[str]
+    current: Dict[str, str]

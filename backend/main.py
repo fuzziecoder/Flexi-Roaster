@@ -9,7 +9,7 @@ from datetime import datetime
 import uvicorn
 
 from backend.config import settings
-from backend.api.routes import pipelines, executions, metrics, airflow
+from backend.api.routes import pipelines, executions, metrics, airflow, model_serving
 
 # Create FastAPI app
 app = FastAPI(
@@ -78,6 +78,7 @@ app.include_router(pipelines.router, prefix=settings.API_PREFIX)
 app.include_router(executions.router, prefix=settings.API_PREFIX)
 app.include_router(metrics.router, prefix=settings.API_PREFIX)
 app.include_router(airflow.router, prefix=settings.API_PREFIX)
+app.include_router(model_serving.router, prefix=settings.API_PREFIX)
 
 
 # Run server

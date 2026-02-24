@@ -27,6 +27,12 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
     
+
+    # Model Serving & Deployment
+    MODEL_SERVING: str = "FastAPI / Flask (custom APIs), TorchServe / TensorFlow Serving (framework-specific), BentoML (multi-framework)"
+    CONTAINERIZATION: str = "Docker"
+    ORCHESTRATION: str = "Kubernetes + KServe / Seldon Core"
+
     # Database
     DATABASE_URL: str = "sqlite:///./flexiroaster.db"
     
