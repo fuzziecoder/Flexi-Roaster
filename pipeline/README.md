@@ -41,6 +41,12 @@ A production-ready pipeline automation system built with:
 - Automatic retries with exponential backoff
 - Timeout handling per stage
 
+### Orchestrator Alternatives
+- **Apache Airflow** – Mature, Python-based DAG orchestration for batch pipelines.
+- **Prefect** – Easier to use than Airflow, supports dynamic workflows and cloud execution.
+- **Kubeflow Pipelines** – Kubernetes-native ML pipeline orchestration.
+- **Dagster** – Strong data asset management and observability.
+
 ### AI Safety Module
 - **Pre-execution Risk Assessment**: Predicts failure probability
 - **Runtime Anomaly Detection**: Detects time spikes and error bursts
