@@ -18,6 +18,8 @@ from backend.api.schemas import (
 )
 from backend.models.pipeline import Pipeline, Stage, StageType
 from backend.core.pipeline_engine import PipelineEngine
+from backend.config import settings
+from backend.events import get_event_publisher
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
@@ -73,7 +75,19 @@ async def create_pipeline(pipeline_data: PipelineCreate):
         
         # Store pipeline
         pipelines_db[pipeline.id] = pipeline
-        
+
+        # Publish event: pipeline.created
+        get_event_publisher().publish(
+            topic=settings.TOPIC_PIPELINE_CREATED,
+            key=pipeline.id,
+            payload={
+                "pipeline_id": pipeline.id,
+                "name": pipeline.name,
+                "description": pipeline.description,
+                "stage_count": len(pipeline.stages),
+            },
+        )
+
         return pipeline
         
     except ValueError as e:
