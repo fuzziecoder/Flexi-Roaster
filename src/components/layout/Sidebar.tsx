@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { FlexibleAI } from '@/components/ai';
+import { logoUrl } from '@/lib/assets';
 import {
     LayoutDashboard,
     GitBranch,
@@ -85,7 +86,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
                         {!collapsed && (
                             <div className="flex items-center gap-2">
-                                <img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded" />
+                                <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded" />
                                 <span className="text-xl font-bold text-white zen-dots">FlexiRoaster</span>
                             </div>
                         )}

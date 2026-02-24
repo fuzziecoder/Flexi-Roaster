@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Mail, Lock, User, Github } from 'lucide-react';
+import { logoUrl } from '@/lib/assets';
 
 export function Signup() {
     const [email, setEmail] = useState('');
@@ -73,7 +74,7 @@ export function Signup() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="flex items-center justify-center gap-3 mb-2">
-                        <img src="/logo.jpg" alt="FlexiRoaster" className="w-12 h-12 rounded" />
+                        <img src={logoUrl} alt="FlexiRoaster" className="w-12 h-12 rounded" />
                         <h1 className="text-3xl font-bold text-white zen-dots">FlexiRoaster</h1>
                     </div>
                     <p className="text-gray-400">Create your account</p>
