@@ -5,6 +5,8 @@ A production-ready pipeline automation system built with:
 - **Apache Airflow** - Orchestration & scheduling
 - **FastAPI** - Pipeline execution engine
 - **Redis** - State management, locks, caching
+- **Celery** - Distributed task queue
+- **Kafka** - Event-driven execution streaming
 - **PostgreSQL** - Persistence
 - **AI Safety Module** - Failure prediction & anomaly handling
 
@@ -34,6 +36,12 @@ A production-ready pipeline automation system built with:
 ```
 
 ## Features
+
+### Distributed Execution Engine
+- Task queue: **Celery** (API enqueues execution jobs)
+- Streaming bus: **Kafka** (execution lifecycle events)
+- Flow: **API → Redis/Kafka → Worker Nodes → Database → Metrics**
+- Worker nodes scale independently from the API layer
 
 ### Pipeline Orchestration
 - DAG-based workflow management
@@ -188,6 +196,13 @@ curl -X POST http://localhost:8000/api/executions/pipeline-xxx/execute
 | `EXECUTOR_STAGE_TIMEOUT` | `120` | Stage timeout in seconds |
 | `AI_BLOCK_HIGH_RISK` | `false` | Block high-risk executions |
 | `AI_RISK_THRESHOLD_HIGH` | `0.7` | High risk threshold |
+| `EXECUTION_QUEUE_BACKEND` | `celery` | Queue backend (`celery` or `inline`) |
+| `CELERY_BROKER_URL` | `redis://localhost:6379/0` | Celery broker URL |
+| `CELERY_RESULT_BACKEND` | `redis://localhost:6379/0` | Celery result backend |
+| `CELERY_TASK_QUEUE` | `pipeline_execution` | Celery queue name |
+| `KAFKA_ENABLED` | `false` | Enable Kafka execution events |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers |
+| `KAFKA_EXECUTION_TOPIC` | `pipeline.executions` | Kafka topic for lifecycle events |
 
 ### Airflow Variables
 
@@ -323,3 +338,11 @@ pytest tests/ -v
 ## License
 
 MIT License
+
+
+### Run distributed workers
+
+```bash
+cd pipeline/backend
+celery -A core.tasks.celery_app worker --loglevel=info --concurrency=4
+```

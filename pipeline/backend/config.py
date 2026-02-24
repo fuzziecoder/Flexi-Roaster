@@ -94,6 +94,18 @@ class Settings(BaseSettings):
     # Airflow Integration
     # ===================
     AIRFLOW_CALLBACK_SECRET: str = ""  # Shared secret for Airflow callbacks
+
+    # ===================
+    # Distributed Execution Engine
+    # ===================
+    EXECUTION_QUEUE_BACKEND: str = "celery"  # celery | inline
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    CELERY_TASK_QUEUE: str = "pipeline_execution"
+    CELERY_TASK_NAME: str = "core.tasks.execute_pipeline_task"
+    KAFKA_ENABLED: bool = False
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_EXECUTION_TOPIC: str = "pipeline.executions"
     
     class Config:
         env_file = ".env"
