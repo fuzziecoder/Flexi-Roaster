@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     CONTAINERIZATION: str = "Docker"
     ORCHESTRATION: str = "Kubernetes + KServe / Seldon Core"
 
+    # Workflow orchestration
+    WORKFLOW_ORCHESTRATION: str = "Apache Airflow"
+    ML_ORCHESTRATION: str = "Kubeflow Pipelines"
+    BATCH_ORCHESTRATION: str = "Apache Airflow"
+
     # Database
     DATABASE_URL: str = "sqlite:///./flexiroaster.db"
     

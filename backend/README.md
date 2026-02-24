@@ -66,6 +66,9 @@ Server will be available at:
 ### Model Serving & Deployment
 - `GET /api/model-serving` - Supported model-serving stack and current deployment config
 
+### Workflow Orchestration
+- `GET /api/orchestration` - Supported orchestration platforms (Airflow, Prefect, Kubeflow, Dagster) and current backend defaults
+
 ## Example Usage
 
 ### Create a Pipeline

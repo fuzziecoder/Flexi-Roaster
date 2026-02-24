@@ -247,3 +247,16 @@ class DeploymentStackResponse(BaseModel):
     containerization: str
     orchestration: List[str]
     current: Dict[str, str]
+
+
+class OrchestrationOption(BaseModel):
+    """Pipeline orchestration platform metadata."""
+    name: str
+    category: str
+    description: str
+
+
+class OrchestrationStackResponse(BaseModel):
+    """Supported orchestration options for batch/data/ML workflows."""
+    orchestration_options: List[OrchestrationOption]
+    current: Dict[str, str]
