@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     CONTAINERIZATION: str = "Docker"
     ORCHESTRATION: str = "Kubernetes + KServe / Seldon Core"
 
+    # Workflow orchestration
+    WORKFLOW_ORCHESTRATION: str = "Apache Airflow"
+    ML_ORCHESTRATION: str = "Kubeflow Pipelines"
+    BATCH_ORCHESTRATION: str = "Apache Airflow"
     # Data platform stack
     DATA_INGESTION: str = "Apache Kafka / Redpanda (streaming), Apache NiFi (ETL)"
     DATA_LAKE: str = "Amazon S3 / Google Cloud Storage / Azure Blob"

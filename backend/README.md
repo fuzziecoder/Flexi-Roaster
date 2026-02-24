@@ -70,6 +70,8 @@ Server will be available at:
 ### Model Serving & Deployment
 - `GET /api/model-serving` - Supported model-serving stack and current deployment config
 
+### Workflow Orchestration
+- `GET /api/orchestration` - Supported orchestration platforms (Airflow, Prefect, Kubeflow, Dagster) and current backend defaults
 ### Data Platform
 - `GET /api/data-platform` - Supported ingestion/lake/warehouse/feature-store stack and current backend config
 
