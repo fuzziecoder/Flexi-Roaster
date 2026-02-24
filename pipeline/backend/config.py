@@ -97,6 +97,14 @@ class Settings(BaseSettings):
     LOG_FILE: Optional[str] = None
     
     # ===================
+    # Observability Settings
+    # ===================
+    SENTRY_DSN: str = ""
+    SENTRY_ENVIRONMENT: str = "development"
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    SENTRY_PROFILES_SAMPLE_RATE: float = 0.1
+
+    # ===================
     # Airflow Integration
     # ===================
     AIRFLOW_CALLBACK_SECRET: str = ""  # Shared secret for Airflow callbacks

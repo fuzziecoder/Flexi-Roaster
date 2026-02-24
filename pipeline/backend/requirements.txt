@@ -30,6 +30,8 @@ pyyaml==6.0.1
 httpx==0.25.2
 structlog==23.2.0
 tenacity==8.2.3
+sentry-sdk[fastapi]==2.19.2
+prometheus-fastapi-instrumentator==7.0.0
 
 # Async support
 anyio==4.1.0

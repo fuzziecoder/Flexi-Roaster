@@ -14,6 +14,17 @@ pip install -r backend/requirements.txt
 
 ## Running the Backend
 
+### Core API Layer
+
+- **FastAPI** - High-performance Python API framework
+- **Uvicorn** - ASGI server for FastAPI
+- **Gunicorn** - Production process manager
+- **NGINX** - Reverse proxy, load balancing, and rate limiting
+
+### Optional Alternative
+
+- **Django** - Use when a full admin experience and enterprise-grade auth system are required
+
 ### Option 1: CLI Testing (Phase 1)
 
 Test pipeline execution from command line:
