@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     WORKFLOW_ORCHESTRATION: str = "Apache Airflow"
     ML_ORCHESTRATION: str = "Kubeflow Pipelines"
     BATCH_ORCHESTRATION: str = "Apache Airflow"
+    # Data platform stack
+    DATA_INGESTION: str = "Apache Kafka / Redpanda (streaming), Apache NiFi (ETL)"
+    DATA_LAKE: str = "Amazon S3 / Google Cloud Storage / Azure Blob"
+    DATA_WAREHOUSE: str = "Snowflake / BigQuery / Amazon Redshift"
+    FEATURE_STORE: str = "Feast / Tecton"
 
     # Database
     DATABASE_URL: str = "sqlite:///./flexiroaster.db"
@@ -67,6 +72,26 @@ class Settings(BaseSettings):
     LOG_REQUEST_BODY: bool = False
     LOG_RESPONSE_BODY: bool = False
     SENSITIVE_FIELDS: List[str] = ["password", "token", "secret", "api_key", "authorization", "credit_card", "ssn"]
+
+    # Observability integrations
+    GRAFANA_ENABLED: bool = True
+    GRAFANA_URL: Optional[str] = None
+    ELK_ENABLED: bool = True
+    ELK_ENDPOINT: Optional[str] = None
+
+    EVIDENTLY_ENABLED: bool = True
+    EVIDENTLY_API_KEY: Optional[str] = None
+    ARIZE_ENABLED: bool = True
+    ARIZE_SPACE_KEY: Optional[str] = None
+    ARIZE_API_KEY: Optional[str] = None
+    FIDDLER_ENABLED: bool = True
+    FIDDLER_URL: Optional[str] = None
+    FIDDLER_API_KEY: Optional[str] = None
+
+    PAGERDUTY_ENABLED: bool = True
+    PAGERDUTY_ROUTING_KEY: Optional[str] = None
+    OPSGENIE_ENABLED: bool = True
+    OPSGENIE_API_KEY: Optional[str] = None
     
     class Config:
         env_file = ".env"

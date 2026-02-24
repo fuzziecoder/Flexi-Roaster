@@ -251,6 +251,8 @@ class DeploymentStackResponse(BaseModel):
 
 class OrchestrationOption(BaseModel):
     """Pipeline orchestration platform metadata."""
+class PlatformOption(BaseModel):
+    """Data platform technology option metadata."""
     name: str
     category: str
     description: str
@@ -259,4 +261,10 @@ class OrchestrationOption(BaseModel):
 class OrchestrationStackResponse(BaseModel):
     """Supported orchestration options for batch/data/ML workflows."""
     orchestration_options: List[OrchestrationOption]
+class DataPlatformStackResponse(BaseModel):
+    """Data platform stack details for ingestion and analytics workloads."""
+    ingestion_options: List[PlatformOption]
+    data_lake_options: List[PlatformOption]
+    data_warehouse_options: List[PlatformOption]
+    feature_store_options: List[PlatformOption]
     current: Dict[str, str]
