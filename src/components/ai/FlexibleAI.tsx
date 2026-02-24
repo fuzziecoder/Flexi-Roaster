@@ -6,6 +6,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useFlexibleAI, type Message as AIMessage } from '@/hooks/useFlexibleAI';
 import { toast } from '@/components/common';
+import { logoUrl } from '@/lib/assets';
 import {
     Send,
     X,
@@ -34,7 +35,7 @@ function MessageBubble({ message }: { message: AIMessage }) {
                 {isUser ? (
                     <User className="w-4 h-4 text-white/70" />
                 ) : (
-                    <img src="/logo.jpg" alt="AI" className="w-6 h-6 rounded-full" />
+                    <img src={logoUrl} alt="AI" className="w-6 h-6 rounded-full" />
                 )}
             </div>
 
@@ -142,7 +143,7 @@ function AIModal({
                 <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#111]">
                     <div className="flex items-center gap-3">
                         <div className="relative">
-                            <img src="/logo.jpg" alt="AI" className="w-8 h-8 rounded-lg" />
+                            <img src={logoUrl} alt="AI" className="w-8 h-8 rounded-lg" />
                             <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#111]" />
                         </div>
                         <div>
@@ -291,7 +292,7 @@ export function FlexibleAI({ collapsed }: FlexibleAIProps) {
                     title="Open Flexible AI"
                 >
                     <div className="relative">
-                        <img src="/logo.jpg" alt="AI" className={`rounded ${collapsed ? 'w-5 h-5' : 'w-6 h-6'}`} />
+                        <img src={logoUrl} alt="AI" className={`rounded ${collapsed ? 'w-5 h-5' : 'w-6 h-6'}`} />
                         <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-[hsl(var(--card))]" />
                     </div>
                     {!collapsed && (
