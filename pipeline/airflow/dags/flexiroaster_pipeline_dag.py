@@ -14,7 +14,7 @@ from typing import Any, Dict
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.utils.dates import days_ago
 from airflow.models import Variable
 import requests
@@ -36,6 +36,10 @@ API_PREFIX = os.environ.get(
 CALLBACK_SECRET = os.environ.get(
     "FLEXIROASTER_CALLBACK_SECRET",
     Variable.get("flexiroaster_callback_secret", default_var="")
+)
+TRIGGER_SECRET = os.environ.get(
+    "FLEXIROASTER_TRIGGER_SECRET",
+    Variable.get("flexiroaster_trigger_secret", default_var="")
 )
 
 # Pipeline configuration
@@ -94,19 +98,22 @@ def trigger_pipeline_execution(**context) -> Dict[str, Any]:
     Returns execution details.
     """
     pipeline_id = context.get("params", {}).get("pipeline_id", PIPELINE_ID)
-    execution_url = f"{BACKEND_URL}{API_PREFIX}/executions/{pipeline_id}/execute"
+    execution_url = f"{BACKEND_URL}{API_PREFIX}/airflow/trigger"
     
     # Prepare execution payload
     payload = {
-        "triggered_by": "airflow",
-        "variables": context.get("params", {}).get("variables", {}),
+        "pipeline_id": pipeline_id,
+        "dag_id": context["dag"].dag_id,
+        "dag_run_id": context["run_id"],
+        "task_id": context["task"].task_id,
+        "run_conf": context.get("params", {}).get("variables", {}),
     }
     
     headers = {
         "Content-Type": "application/json",
     }
-    if CALLBACK_SECRET:
-        headers["X-Airflow-Secret"] = CALLBACK_SECRET
+    if TRIGGER_SECRET:
+        headers["X-Airflow-Trigger-Secret"] = TRIGGER_SECRET
     
     try:
         print(f"Triggering pipeline execution: {pipeline_id}")
@@ -122,9 +129,6 @@ def trigger_pipeline_execution(**context) -> Dict[str, Any]:
         
         result = response.json()
         print(f"Pipeline execution triggered: {result}")
-        
-        if not result.get("success"):
-            raise Exception(f"Pipeline execution failed to start: {result.get('error', 'Unknown error')}")
         
         # Store execution info in XCom for downstream tasks
         context["ti"].xcom_push(key="execution_result", value=result)
@@ -147,7 +151,7 @@ def wait_for_execution_completion(**context) -> Dict[str, Any]:
         key="execution_result"
     )
     
-    execution_id = execution_result.get("execution_id")
+    execution_id = execution_result.get("id")
     if not execution_id:
         print("No execution ID found, pipeline was started asynchronously")
         return {"status": "accepted"}
@@ -191,15 +195,20 @@ def send_callback(callback_type: str, **context) -> None:
     """
     callback_url = f"{BACKEND_URL}{API_PREFIX}/airflow/callback"
     
+    execution_result = context["ti"].xcom_pull(task_ids="trigger_pipeline", key="execution_result") or {}
+    execution_id = execution_result.get("id")
+
+    if not execution_id:
+        print("Skipping callback: no execution ID found in XCom")
+        return
+
     payload = {
+        "execution_id": execution_id,
         "dag_id": context["dag"].dag_id,
         "dag_run_id": context["run_id"],
         "task_id": context["task"].task_id,
-        "execution_date": context["execution_date"].isoformat(),
         "callback_type": callback_type,
-        "context": {
-            "try_number": context.get("task_instance", {}).try_number if hasattr(context.get("task_instance", {}), "try_number") else 1,
-        }
+        "message": f"Airflow callback from task {context['task'].task_id}",
     }
     
     headers = {"Content-Type": "application/json"}
@@ -275,7 +284,7 @@ with DAG(
 ) as dag:
     
     # Start marker
-    start = DummyOperator(
+    start = EmptyOperator(
         task_id="start",
         doc="DAG execution start marker"
     )
@@ -304,7 +313,7 @@ with DAG(
     )
     
     # End marker
-    end = DummyOperator(
+    end = EmptyOperator(
         task_id="end",
         doc="DAG execution end marker"
     )
@@ -346,7 +355,7 @@ with DAG(
     """,
 ) as trigger_dag:
     
-    start_trigger = DummyOperator(task_id="start")
+    start_trigger = EmptyOperator(task_id="start")
     
     health_check_trigger = PythonOperator(
         task_id="health_check",
@@ -358,6 +367,6 @@ with DAG(
         python_callable=trigger_pipeline_execution,
     )
     
-    end_trigger = DummyOperator(task_id="end")
+    end_trigger = EmptyOperator(task_id="end")
     
     start_trigger >> health_check_trigger >> trigger_specific_pipeline >> end_trigger
