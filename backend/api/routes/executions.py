@@ -15,6 +15,8 @@ from backend.api.schemas import (
 )
 from backend.models.pipeline import Execution, ExecutionStatus
 from backend.core.executor import PipelineExecutor
+from backend.config import settings
+from backend.events import get_event_publisher
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
@@ -70,6 +72,17 @@ def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = N
         context=context or {}
     )
     executions_db[execution_id] = execution
+
+    get_event_publisher().publish(
+        topic=settings.TOPIC_EXECUTION_STARTED,
+        key=execution.id,
+        payload={
+            "execution_id": execution.id,
+            "pipeline_id": execution.pipeline_id,
+            "status": execution.status.value,
+            "total_stages": execution.total_stages,
+        },
+    )
     return execution
 
 
@@ -102,10 +115,48 @@ async def execute_pipeline_background(pipeline_id: str, execution_id: str):
 
         result.id = execution_id  # Use the pre-assigned ID
         executions_db[execution_id] = result
+
+        if result.status == ExecutionStatus.COMPLETED:
+            get_event_publisher().publish(
+                topic=settings.TOPIC_EXECUTION_COMPLETED,
+                key=result.id,
+                payload={
+                    "execution_id": result.id,
+                    "pipeline_id": result.pipeline_id,
+                    "status": result.status.value,
+                    "duration_seconds": result.duration,
+                    "stages_completed": result.stages_completed,
+                    "total_stages": result.total_stages,
+                },
+            )
+        elif result.status == ExecutionStatus.FAILED:
+            get_event_publisher().publish(
+                topic=settings.TOPIC_EXECUTION_FAILED,
+                key=result.id,
+                payload={
+                    "execution_id": result.id,
+                    "pipeline_id": result.pipeline_id,
+                    "status": result.status.value,
+                    "error": result.error,
+                    "stages_completed": result.stages_completed,
+                    "total_stages": result.total_stages,
+                },
+            )
     except Exception as e:
         if execution_id in executions_db:
             executions_db[execution_id].status = ExecutionStatus.FAILED
             executions_db[execution_id].error = str(e)
+            failed_execution = executions_db[execution_id]
+            get_event_publisher().publish(
+                topic=settings.TOPIC_EXECUTION_FAILED,
+                key=failed_execution.id,
+                payload={
+                    "execution_id": failed_execution.id,
+                    "pipeline_id": failed_execution.pipeline_id,
+                    "status": failed_execution.status.value,
+                    "error": failed_execution.error,
+                },
+            )
 
 
 @router.post(
