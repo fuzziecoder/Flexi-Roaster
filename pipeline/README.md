@@ -7,6 +7,7 @@ A production-ready pipeline automation system built with:
 - **Redis** - State management, locks, caching
 - **PostgreSQL** - Persistence
 - **AI Safety Module** - Failure prediction & anomaly handling
+- **Elasticsearch** - Execution log indexing, fast filtering, analytics
 - **BentoML + Feast + Kubeflow** - End-to-end model infrastructure
 - **Prometheus + Grafana** - Metrics collection and dashboards
 - **ELK Stack (Elasticsearch, Logstash, Kibana)** - Centralized logging
@@ -228,6 +229,8 @@ curl -X POST http://localhost:8000/api/executions/pipeline-xxx/execute
 |----------|---------|-------------|
 | `DATABASE_URL` | - | PostgreSQL connection string |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection string |
+| `ELASTICSEARCH_URL` | `http://localhost:9200` | Elasticsearch connection string |
+| `ELASTICSEARCH_LOGS_INDEX` | `flexiroaster-execution-logs` | Logs index for search |
 | `EXECUTOR_MAX_RETRIES` | `3` | Max retries per stage |
 | `EXECUTOR_STAGE_TIMEOUT` | `120` | Stage timeout in seconds |
 | `AI_BLOCK_HIGH_RISK` | `false` | Block high-risk executions |
@@ -289,8 +292,9 @@ pipeline/
 |-----------|----------------|
 | **Airflow** | Scheduling, retries, dependencies |
 | **FastAPI** | Business logic, execution, AI safety |
-| **Redis** | Locks, caching, real-time state |
-| **PostgreSQL** | History, definitions, logs |
+| **Redis** | Locks, caching, real-time state, rate limit, sessions, job queue |
+| **PostgreSQL** | History, definitions, canonical execution records |
+| **Elasticsearch** | Execution log indexing, fast search, filtering, analytics |
 
 ### Fail-Safe Design
 

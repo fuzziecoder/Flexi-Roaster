@@ -20,6 +20,7 @@ from core.executor import pipeline_executor
 from api.routes import pipelines, executions, health, monitoring, ai_automation, microservices
 from api.routes import ai_automation, executions, health, model_infra, monitoring, pipelines
 from api.routes import pipelines, executions, health, monitoring, ai_automation
+from core.elasticsearch_client import elasticsearch_manager
 from observability import setup_observability
 
 
@@ -76,6 +77,10 @@ async def lifespan(app: FastAPI):
     # Initialize executor
     await pipeline_executor.initialize()
     logger.info("Pipeline executor initialized")
+
+    # Initialize Elasticsearch
+    await elasticsearch_manager.initialize()
+    logger.info("Elasticsearch manager initialized")
     
     logger.info(f"Application ready on {settings.HOST}:{settings.PORT}")
     
@@ -85,6 +90,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down application...")
     await pipeline_executor.shutdown()
     await redis_state_manager.close()
+    await elasticsearch_manager.close()
     logger.info("Application shutdown complete")
 
 
