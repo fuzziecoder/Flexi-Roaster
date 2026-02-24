@@ -12,6 +12,7 @@ from backend.config import settings
 from backend.api.routes import pipelines, executions, metrics, airflow, governance
 from backend.api.middleware.gateway_middleware import GatewayMiddleware
 from backend.api.security import get_current_auth_context
+from backend.api.routes import pipelines, executions, metrics, airflow, model_serving
 
 # Create FastAPI app
 app = FastAPI(
@@ -86,6 +87,11 @@ app.include_router(executions.router, prefix=settings.API_PREFIX, dependencies=a
 app.include_router(metrics.router, prefix=settings.API_PREFIX, dependencies=auth_dependencies)
 app.include_router(airflow.router, prefix=settings.API_PREFIX, dependencies=auth_dependencies)
 app.include_router(governance.router, prefix=settings.API_PREFIX, dependencies=auth_dependencies)
+app.include_router(pipelines.router, prefix=settings.API_PREFIX)
+app.include_router(executions.router, prefix=settings.API_PREFIX)
+app.include_router(metrics.router, prefix=settings.API_PREFIX)
+app.include_router(airflow.router, prefix=settings.API_PREFIX)
+app.include_router(model_serving.router, prefix=settings.API_PREFIX)
 
 
 # Run server

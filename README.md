@@ -306,6 +306,20 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 4. **Workers/Orchestration**: Split execution workers from API for scale.
 5. **Observability**: Central logs + metrics dashboards + alerting.
 
+### Model Serving & Deployment
+
+#### Model Serving Options
+
+- **FastAPI / Flask** for custom inference APIs and business logic wrappers.
+- **TorchServe / TensorFlow Serving** for framework-specific model hosting.
+- **BentoML** for multi-framework packaging and serving workflows.
+
+#### Containerization & Orchestration
+
+- **Docker** for packaging API and model-serving runtimes into portable images.
+- **Kubernetes** for scheduling, autoscaling, and production runtime management.
+- **KServe / Seldon Core** for Kubernetes-native model serving, rollout, and monitoring.
+
 ### Environment Promotion
 
 - `dev` → `staging` → `production`
