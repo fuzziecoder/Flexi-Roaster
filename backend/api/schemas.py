@@ -24,6 +24,15 @@ class ExecutionStatusSchema(str, Enum):
     CANCELLED = "cancelled"
 
 
+class OrchestrationEngineSchema(str, Enum):
+    """Supported orchestration backends for execution launch."""
+
+    LOCAL = "local"
+    AIRFLOW = "airflow"
+    TEMPORAL = "temporal"
+    PREFECT = "prefect"
+
+
 class AirflowCallbackTypeSchema(str, Enum):
     """Supported callback event types from Airflow."""
     SUCCESS = "success"
@@ -103,7 +112,18 @@ class PipelineListResponse(BaseModel):
 # Execution Schemas
 class ExecutionCreate(BaseModel):
     """Schema for creating an execution"""
+
+    class OrchestrationConfig(BaseModel):
+        """How a pipeline execution should be orchestrated."""
+
+        engine: OrchestrationEngineSchema = OrchestrationEngineSchema.LOCAL
+        retry_attempts: int = Field(default=1, ge=1, le=10)
+        retry_backoff_seconds: int = Field(default=0, ge=0, le=3600)
+        schedule: Optional[str] = None
+        options: Dict[str, Any] = Field(default_factory=dict)
+
     pipeline_id: str
+    orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
 
 
 class AirflowTriggerRequest(BaseModel):
