@@ -21,6 +21,9 @@ def test_architecture_contains_requested_layers():
     assert architecture["api_layer"]["name"] == "FastAPI"
     assert architecture["orchestration"]["name"] in {"temporal", "airflow"}
     assert architecture["execution"]["name"] == "kubernetes-jobs"
+    assert architecture["distributed_compute"]["name"] == "ray"
+    assert set(architecture["distributed_compute"]["config"]["alternatives"]) == {"spark", "dask"}
+    assert "cockroachdb" in architecture["storage"]["database_alternatives"]
     assert architecture["distributed_compute"]["name"] in {"ray", "spark", "dask", "celery"}
     assert architecture["security"]["authorization"] == "rbac"
 
