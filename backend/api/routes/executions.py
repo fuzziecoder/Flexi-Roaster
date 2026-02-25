@@ -14,7 +14,7 @@ from backend.api.schemas import (
     SuccessResponse
 )
 from backend.models.pipeline import Execution, ExecutionStatus
-from backend.core.executor import PipelineExecutor
+from backend.core.distributed_executor import DistributedExecutionDispatcher
 from backend.config import settings
 from backend.events import get_event_publisher
 
@@ -57,19 +57,27 @@ def _merge_execution_logs(result_logs: List, existing_logs: List) -> List:
     return merged_logs
 
 
-def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = None) -> Execution:
+def initialize_execution(
+    pipeline_id: str,
+    context: Optional[Dict[str, Any]] = None,
+    execution_backend: Optional[str] = None,
+) -> Execution:
     """Create and store a pending execution record."""
     from datetime import datetime
 
     execution_id = f"exec-{uuid.uuid4()}"
     pipeline = pipelines_db[pipeline_id]
+    merged_context = context.copy() if context else {}
+    if execution_backend:
+        merged_context["requested_execution_backend"] = execution_backend
+
     execution = Execution(
         id=execution_id,
         pipeline_id=pipeline_id,
         status=ExecutionStatus.PENDING,
         started_at=datetime.now(),
         total_stages=len(pipeline.stages),
-        context=context or {}
+        context=merged_context
     )
     executions_db[execution_id] = execution
 
@@ -86,12 +94,19 @@ def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = N
     return execution
 
 
-async def execute_pipeline_background(pipeline_id: str, execution_id: str):
+async def execute_pipeline_background(
+    pipeline_id: str,
+    execution_id: str,
+    execution_backend: Optional[str] = None,
+):
     """Background task to execute pipeline."""
     try:
         pipeline = pipelines_db[pipeline_id]
-        executor = PipelineExecutor()
-        result = executor.execute(pipeline)
+        dispatcher = DistributedExecutionDispatcher()
+        dispatch_result = dispatcher.run(pipeline, backend_override=execution_backend)
+        result = dispatch_result.execution
+        result.context.setdefault("distributed_execution", {})
+        result.context["distributed_execution"]["backend_used"] = dispatch_result.backend_used
 
         existing = executions_db.get(execution_id)
         if existing:
@@ -183,13 +198,17 @@ async def create_execution(
         )
     
     # Create execution record
-    execution = initialize_execution(execution_data.pipeline_id)
+    execution = initialize_execution(
+        execution_data.pipeline_id,
+        execution_backend=execution_data.execution_backend
+    )
     
     # Start execution in background
     background_tasks.add_task(
         execute_pipeline_background,
         execution_data.pipeline_id,
-        execution.id
+        execution.id,
+        execution_data.execution_backend
     )
     
     return execution

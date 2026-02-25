@@ -103,6 +103,10 @@ class PipelineListResponse(BaseModel):
 class ExecutionCreate(BaseModel):
     """Schema for creating an execution"""
     pipeline_id: str
+    execution_backend: Optional[str] = Field(
+        default=None,
+        description="Optional override for distributed backend: local, celery, or ray",
+    )
 
 
 class AirflowTriggerRequest(BaseModel):
