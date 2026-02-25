@@ -142,6 +142,24 @@ class Settings(BaseSettings):
     KAFKA_TRIGGER_TOPIC: str = "pipeline.triggers"
     KAFKA_TRIGGER_GROUP: str = "flexiroaster-orchestrator"
 
+    # Event & messaging provider settings
+    EVENT_BACKEND: str = "kafka"  # kafka | pulsar | rabbitmq | nats
+    PULSAR_ENABLED: bool = False
+    PULSAR_SERVICE_URL: str = "pulsar://localhost:6650"
+    PULSAR_EXECUTION_TOPIC: str = "persistent://public/default/pipeline.executions"
+    PULSAR_TENANT: str = "public"
+    PULSAR_NAMESPACE: str = "default"
+    PULSAR_GEO_REPLICATION_REGIONS: List[str] = []
+
+    RABBITMQ_ENABLED: bool = False
+    RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/"
+    RABBITMQ_EXCHANGE: str = "pipeline.executions"
+    RABBITMQ_QUEUE: str = "pipeline.execution.tasks"
+
+    NATS_ENABLED: bool = False
+    NATS_SERVERS: List[str] = ["nats://localhost:4222"]
+    NATS_SUBJECT: str = "pipeline.executions"
+
     # ===================
     # Enterprise Orchestration
     # ===================
@@ -169,11 +187,27 @@ class Settings(BaseSettings):
     RAY_DASHBOARD_URL: str = "http://localhost:8265"
     RAY_JOB_ENTRYPOINT: str = "python -m worker"
 
+    DISTRIBUTED_COMPUTE_BACKEND: str = "ray"  # ray | celery | spark | dask
+    SPARK_ENABLED: bool = False
+    SPARK_MASTER_URL: str = "spark://localhost:7077"
+    SPARK_APP_NAME: str = "flexiroaster-pipeline"
+    SPARK_STREAMING_ENABLED: bool = True
+
+    DASK_ENABLED: bool = False
+    DASK_SCHEDULER_ADDRESS: str = "tcp://localhost:8786"
+    DASK_DASHBOARD_URL: str = "http://localhost:8787"
+
     OBJECT_STORAGE_ENABLED: bool = True
     OBJECT_STORAGE_BUCKET: str = "pipeline-artifacts"
     OBJECT_STORAGE_ENDPOINT: str = "http://localhost:9000"
     OBJECT_STORAGE_ACCESS_KEY: str = "minio"
     OBJECT_STORAGE_SECRET_KEY: str = "minio123"
+
+    DATABASE_BACKEND: str = "postgresql"  # postgresql | cockroachdb | mongodb | cassandra
+    COCKROACHDB_URL: str = "postgresql://root@localhost:26257/flexiroaster?sslmode=disable"
+    MONGODB_URL: str = "mongodb://localhost:27017/flexiroaster"
+    CASSANDRA_CONTACT_POINTS: List[str] = ["localhost"]
+    CASSANDRA_KEYSPACE: str = "flexiroaster"
 
     JWT_SECRET: str = ""
     JWT_ISSUER: str = "flexiroaster"
