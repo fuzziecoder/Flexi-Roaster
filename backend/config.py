@@ -51,6 +51,18 @@ class Settings(BaseSettings):
     TOPIC_EXECUTION_FAILED: str = "execution.failed"
     TOPIC_EXECUTION_COMPLETED: str = "execution.completed"
 
+    # Distributed execution backends: local|celery|ray
+    DISTRIBUTED_EXECUTION_BACKEND: str = "local"
+
+    # Celery settings
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
+    CELERY_EXECUTION_TASK: str = "flexiroaster.execute_pipeline"
+
+    # Ray settings
+    RAY_ADDRESS: str = "auto"
+    RAY_NAMESPACE: str = "flexiroaster"
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):

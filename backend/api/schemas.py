@@ -123,6 +123,10 @@ class ExecutionCreate(BaseModel):
         options: Dict[str, Any] = Field(default_factory=dict)
 
     pipeline_id: str
+    execution_backend: Optional[str] = Field(
+        default=None,
+        description="Optional override for distributed backend: local, celery, or ray",
+    )
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
 
 

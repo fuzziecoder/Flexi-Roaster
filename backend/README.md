@@ -103,6 +103,33 @@ curl -X POST http://localhost:8000/api/executions \
 ```
 
 
+### Distributed Task Execution (Celery / Ray)
+
+FlexiRoaster supports selectable execution backends for asynchronous and distributed workloads:
+
+- `local`: default in-process execution
+- `celery`: async jobs, retries, and scheduling support through Celery workers
+- `ray`: distributed Python execution, optimized for ML/AI-heavy pipelines
+
+Use the optional `execution_backend` field when creating an execution:
+
+```bash
+curl -X POST http://localhost:8000/api/executions   -H "Content-Type: application/json"   -d '{"pipeline_id": "your-pipeline-id", "execution_backend": "ray"}'
+```
+
+Or set a default backend via environment variables in `backend/.env`:
+
+```env
+DISTRIBUTED_EXECUTION_BACKEND=local
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+CELERY_EXECUTION_TASK=flexiroaster.execute_pipeline
+RAY_ADDRESS=auto
+RAY_NAMESPACE=flexiroaster
+```
+
+If Celery or Ray is unavailable, FlexiRoaster automatically falls back to local execution and records the fallback reason in execution context.
+
 ## Authentication & Security
 
 - JWT authentication endpoint: `POST /api/auth/token`
