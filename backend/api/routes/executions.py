@@ -25,6 +25,7 @@ from backend.api.security import UserPrincipal, get_current_user
 from backend.config import settings
 from backend.core.executor import PipelineExecutor
 from backend.events import get_event_publisher
+from backend.observability import observability_metrics
 from backend.models.pipeline import Execution, ExecutionStatus
 
 router = APIRouter(prefix="/executions", tags=["executions"])
@@ -38,6 +39,26 @@ from backend.api.routes.pipelines import pipelines_db
 TERMINAL_STATUSES = {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED}
 
 
+def _pipeline_failure_rate_percent(pipeline_id: str) -> float:
+    """Compute failure rate for completed pipeline executions."""
+    terminal = [
+        execution
+        for execution in executions_db.values()
+        if execution.pipeline_id == pipeline_id and execution.status in TERMINAL_STATUSES
+    ]
+    if not terminal:
+        return 0.0
+
+    failed = len([execution for execution in terminal if execution.status == ExecutionStatus.FAILED])
+    return (failed / len(terminal)) * 100
+
+
+def _update_active_executions_metric() -> None:
+    active_count = len([
+        execution for execution in executions_db.values()
+        if execution.status in {ExecutionStatus.PENDING, ExecutionStatus.RUNNING}
+    ])
+    observability_metrics.set_active_executions(active_count)
 ORCHESTRATION_SCHEMA_TO_CORE = {
     OrchestrationEngineSchema.LOCAL: OrchestrationEngine.LOCAL,
     OrchestrationEngineSchema.AIRFLOW: OrchestrationEngine.AIRFLOW,
@@ -116,6 +137,7 @@ def initialize_execution(
         context=context or {},
     )
     executions_db[execution_id] = execution
+    _update_active_executions_metric()
 
     get_event_publisher().publish(
         topic=settings.TOPIC_EXECUTION_STARTED,
@@ -165,6 +187,16 @@ async def execute_pipeline_background(
         result.id = execution_id
         executions_db[execution_id] = result
 
+        observability_metrics.observe_execution_outcome(
+            pipeline_id=result.pipeline_id,
+            status=result.status.value,
+            duration_seconds=result.duration,
+            failure_rate_percent=_pipeline_failure_rate_percent(result.pipeline_id),
+            sla_target_seconds=settings.PIPELINE_SLA_TARGET_SECONDS,
+        )
+        _update_active_executions_metric()
+        observability_metrics.observe_process_resources()
+
         if result.status == ExecutionStatus.COMPLETED:
             get_event_publisher().publish(
                 topic=settings.TOPIC_EXECUTION_COMPLETED,
@@ -198,6 +230,15 @@ async def execute_pipeline_background(
             executions_db[execution_id].status = ExecutionStatus.FAILED
             executions_db[execution_id].error = str(e)
             failed_execution = executions_db[execution_id]
+            observability_metrics.observe_execution_outcome(
+                pipeline_id=failed_execution.pipeline_id,
+                status=failed_execution.status.value,
+                duration_seconds=failed_execution.duration,
+                failure_rate_percent=_pipeline_failure_rate_percent(failed_execution.pipeline_id),
+                sla_target_seconds=settings.PIPELINE_SLA_TARGET_SECONDS,
+            )
+            _update_active_executions_metric()
+            observability_metrics.observe_process_resources()
             get_event_publisher().publish(
                 topic=settings.TOPIC_EXECUTION_FAILED,
                 key=failed_execution.id,

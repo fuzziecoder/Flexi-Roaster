@@ -19,6 +19,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from backend.config import settings
+from backend.observability import observability_metrics
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +105,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         request_id = request.headers.get("x-request-id", str(uuid.uuid4())[:8])
 
         # Timing
+        timer = observability_metrics.start_timer()
         start = time.perf_counter()
 
         # Request info
@@ -154,6 +156,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 request_id, method, path, status, phrase, duration_ms, length,
             )
 
+            observability_metrics.observe_http_request(
+                method=method,
+                path=path,
+                status_code=status,
+                duration_seconds=timer.elapsed_seconds(),
+            )
+
             response.headers["X-Request-ID"] = request_id
             return response
 
@@ -163,5 +172,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 "req_id=%s | <-- %s %s -> 500 Internal Server Error (%sms) | error=%s",
                 request_id, method, path, duration_ms, str(exc),
                 exc_info=True,
+            )
+            observability_metrics.observe_http_request(
+                method=method,
+                path=path,
+                status_code=500,
+                duration_seconds=timer.elapsed_seconds(),
             )
             raise

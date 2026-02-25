@@ -202,6 +202,33 @@ TOPIC_EXECUTION_COMPLETED=execution.completed
 
 If Kafka/Redpanda is unavailable, the backend falls back to structured application logs for events so local development continues to work.
 
+
+## Monitoring & Observability
+
+FlexiRoaster now includes a production observability baseline:
+
+- **Prometheus** metrics scrape endpoint: `GET /metrics`
+- **Grafana** dashboards (using Prometheus datasource)
+- **Elasticsearch + Logstash** centralized JSON logs
+
+Key telemetry includes:
+- Pipeline latency (`flexiroaster_pipeline_execution_latency_seconds`)
+- Failure rates (`flexiroaster_pipeline_failure_rate`)
+- Resource usage (`flexiroaster_process_cpu_percent`, `flexiroaster_process_memory_rss_bytes`)
+- SLA tracking (`flexiroaster_pipeline_sla_breaches_total`)
+
+Runtime knobs (environment variables):
+
+```env
+ENABLE_PROMETHEUS_METRICS=true
+PIPELINE_SLA_TARGET_SECONDS=30
+ENABLE_LOGSTASH_LOGGING=true
+LOGSTASH_HOST=logstash
+LOGSTASH_PORT=5000
+```
+
+Use `docker compose up` to launch backend + monitoring stack (Prometheus/Grafana/Elasticsearch/Logstash).
+
 ## Next Steps
 
 1. Install Python and dependencies

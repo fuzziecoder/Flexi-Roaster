@@ -92,6 +92,15 @@ class Settings(BaseSettings):
     LOG_REQUEST_BODY: bool = False
     LOG_RESPONSE_BODY: bool = False
     SENSITIVE_FIELDS: List[str] = ["password", "token", "secret", "api_key", "authorization", "credit_card", "ssn"]
+
+    # Observability
+    ENABLE_PROMETHEUS_METRICS: bool = True
+    PIPELINE_SLA_TARGET_SECONDS: float = 30.0
+
+    # Centralized logs (Logstash TCP)
+    ENABLE_LOGSTASH_LOGGING: bool = False
+    LOGSTASH_HOST: str = "localhost"
+    LOGSTASH_PORT: int = 5000
     
     class Config:
         env_file = ".env"

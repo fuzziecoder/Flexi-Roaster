@@ -7,7 +7,7 @@ from datetime import datetime
 import uvicorn
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from backend.api.middleware.rate_limit_middleware import RateLimitMiddleware
 from backend.api.routes import airflow, executions, metrics, pipelines
@@ -15,6 +15,8 @@ from backend.api.routes.auth import router as auth_router
 from backend.api.security import require_roles
 from backend.config import settings
 from backend.services.secrets import secret_manager
+from backend.observability import observability_metrics
+from backend.observability.logging import configure_logstash_logging
 
 # Create FastAPI app
 app = FastAPI(
@@ -43,6 +45,9 @@ if settings.LOG_REQUESTS:
     from backend.api.middleware.logging_middleware import RequestLoggingMiddleware
 
     app.add_middleware(RequestLoggingMiddleware)
+
+# Optional centralized log shipping
+configure_logstash_logging()
 
 
 @app.on_event("startup")
@@ -77,6 +82,13 @@ async def health_check():
         "version": settings.APP_VERSION,
         "timestamp": datetime.now().isoformat(),
     }
+
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics():
+    """Prometheus scrape endpoint for infrastructure monitoring."""
+    payload, content_type = observability_metrics.prometheus_payload()
+    return Response(content=payload, media_type=content_type)
 
 
 # Root endpoint
