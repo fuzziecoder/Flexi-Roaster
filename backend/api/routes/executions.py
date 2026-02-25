@@ -11,10 +11,12 @@ from backend.api.schemas import (
     ExecutionResponse,
     ExecutionDetailResponse,
     ExecutionListResponse,
+    OrchestrationEngineSchema,
     SuccessResponse
 )
 from backend.models.pipeline import Execution, ExecutionStatus
 from backend.core.executor import PipelineExecutor
+from backend.core.orchestration import OrchestrationEngine, OrchestrationRequest, OrchestrationRegistry
 from backend.config import settings
 from backend.events import get_event_publisher
 
@@ -27,6 +29,27 @@ executions_db: Dict[str, Execution] = {}
 from backend.api.routes.pipelines import pipelines_db
 
 TERMINAL_STATUSES = {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED}
+
+
+ORCHESTRATION_SCHEMA_TO_CORE = {
+    OrchestrationEngineSchema.LOCAL: OrchestrationEngine.LOCAL,
+    OrchestrationEngineSchema.AIRFLOW: OrchestrationEngine.AIRFLOW,
+    OrchestrationEngineSchema.TEMPORAL: OrchestrationEngine.TEMPORAL,
+    OrchestrationEngineSchema.PREFECT: OrchestrationEngine.PREFECT,
+}
+
+
+def _build_orchestration_context(execution_data: ExecutionCreate) -> Dict[str, Any]:
+    orchestration = execution_data.orchestration
+    return {
+        "orchestration": {
+            "engine": orchestration.engine.value,
+            "retry_attempts": orchestration.retry_attempts,
+            "retry_backoff_seconds": orchestration.retry_backoff_seconds,
+            "schedule": orchestration.schedule,
+            "options": orchestration.options.copy(),
+        }
+    }
 
 
 def _merge_execution_context(result_context: Dict[str, Any], existing_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -182,16 +205,41 @@ async def create_execution(
             detail=f"Pipeline not found: {execution_data.pipeline_id}"
         )
     
+    orchestration_context = _build_orchestration_context(execution_data)
+
     # Create execution record
-    execution = initialize_execution(execution_data.pipeline_id)
-    
-    # Start execution in background
-    background_tasks.add_task(
-        execute_pipeline_background,
-        execution_data.pipeline_id,
-        execution.id
-    )
-    
+    execution = initialize_execution(execution_data.pipeline_id, context=orchestration_context)
+
+    orchestration_engine = ORCHESTRATION_SCHEMA_TO_CORE[execution_data.orchestration.engine]
+    if orchestration_engine == OrchestrationEngine.LOCAL:
+        # Start local execution in background
+        background_tasks.add_task(
+            execute_pipeline_background,
+            execution_data.pipeline_id,
+            execution.id
+        )
+    else:
+        pipeline = pipelines_db[execution_data.pipeline_id]
+        orchestration_request = OrchestrationRequest(
+            engine=orchestration_engine,
+            execution_id=execution.id,
+            pipeline_id=execution.pipeline_id,
+            pipeline_name=pipeline.name,
+            retry_attempts=execution_data.orchestration.retry_attempts,
+            retry_backoff_seconds=execution_data.orchestration.retry_backoff_seconds,
+            schedule=execution_data.orchestration.schedule,
+            options=execution_data.orchestration.options.copy(),
+        )
+        orchestration_result = OrchestrationRegistry().get(orchestration_engine).dispatch(orchestration_request)
+        execution.add_log(
+            None,
+            "INFO",
+            orchestration_result.message,
+            metadata=orchestration_result.metadata,
+        )
+        execution.context.setdefault("orchestration", {}).update(orchestration_result.metadata)
+        execution.status = orchestration_result.status
+
     return execution
 
 
