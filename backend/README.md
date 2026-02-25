@@ -103,6 +103,33 @@ curl -X POST http://localhost:8000/api/executions \
 ```
 
 
+### Distributed Task Execution (Celery / Ray)
+
+FlexiRoaster supports selectable execution backends for asynchronous and distributed workloads:
+
+- `local`: default in-process execution
+- `celery`: async jobs, retries, and scheduling support through Celery workers
+- `ray`: distributed Python execution, optimized for ML/AI-heavy pipelines
+
+Use the optional `execution_backend` field when creating an execution:
+
+```bash
+curl -X POST http://localhost:8000/api/executions   -H "Content-Type: application/json"   -d '{"pipeline_id": "your-pipeline-id", "execution_backend": "ray"}'
+```
+
+Or set a default backend via environment variables in `backend/.env`:
+
+```env
+DISTRIBUTED_EXECUTION_BACKEND=local
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+CELERY_EXECUTION_TASK=flexiroaster.execute_pipeline
+RAY_ADDRESS=auto
+RAY_NAMESPACE=flexiroaster
+```
+
+If Celery or Ray is unavailable, FlexiRoaster automatically falls back to local execution and records the fallback reason in execution context.
+
 ## Authentication & Security
 
 - JWT authentication endpoint: `POST /api/auth/token`
@@ -136,7 +163,22 @@ cp backend/.env.example backend/.env
 
 ## Event-Driven Architecture (Advanced Setup)
 
-FlexiRoaster supports Kafka-backed domain events for loose coupling, high scalability, audit-friendly workflows, and real-time analytics.
+FlexiRoaster supports Kafka-compatible domain events (Apache Kafka or Redpanda) for loose coupling, high scalability, audit-friendly workflows, and real-time analytics.
+
+
+#### Apache Kafka
+- Event-driven triggers
+- High-throughput ingestion
+- Real-time pipeline activation
+
+#### Redpanda
+- Kafka-compatible
+- Lower operational complexity
+
+Use this layer when:
+- Pipelines should trigger from events
+- You need real-time monitoring
+- You process millions of records
 
 ### Published topics
 - `pipeline.created`
@@ -144,11 +186,12 @@ FlexiRoaster supports Kafka-backed domain events for loose coupling, high scalab
 - `execution.failed`
 - `execution.completed`
 
-### Enable Kafka publishing
+### Enable streaming publishing
 Set the following environment variables in `backend/.env`:
 
 ```env
 ENABLE_EVENT_STREAMING=true
+EVENT_STREAM_BACKEND=kafka
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_CLIENT_ID=flexiroaster-backend
 TOPIC_PIPELINE_CREATED=pipeline.created
@@ -157,7 +200,7 @@ TOPIC_EXECUTION_FAILED=execution.failed
 TOPIC_EXECUTION_COMPLETED=execution.completed
 ```
 
-If Kafka is unavailable, the backend falls back to structured application logs for events so local development continues to work.
+If Kafka/Redpanda is unavailable, the backend falls back to structured application logs for events so local development continues to work.
 
 
 ## Monitoring & Observability

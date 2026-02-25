@@ -3,7 +3,7 @@ Configuration settings for FlexiRoaster backend.
 """
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 
 class Settings(BaseSettings):
@@ -40,8 +40,9 @@ class Settings(BaseSettings):
     KEYCLOAK_ENABLED: bool = False
     KEYCLOAK_ISSUER: Optional[str] = None
     KEYCLOAK_CLIENT_ID: Optional[str] = None
-    # Event-driven architecture (Kafka)
+    # Event-driven architecture (Kafka / Redpanda)
     ENABLE_EVENT_STREAMING: bool = False
+    EVENT_STREAM_BACKEND: Literal["kafka", "redpanda"] = "kafka"
     KAFKA_BOOTSTRAP_SERVERS: Union[str, List[str]] = "localhost:9092"
     KAFKA_CLIENT_ID: str = "flexiroaster-backend"
 
@@ -49,6 +50,18 @@ class Settings(BaseSettings):
     TOPIC_EXECUTION_STARTED: str = "execution.started"
     TOPIC_EXECUTION_FAILED: str = "execution.failed"
     TOPIC_EXECUTION_COMPLETED: str = "execution.completed"
+
+    # Distributed execution backends: local|celery|ray
+    DISTRIBUTED_EXECUTION_BACKEND: str = "local"
+
+    # Celery settings
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
+    CELERY_EXECUTION_TASK: str = "flexiroaster.execute_pipeline"
+
+    # Ray settings
+    RAY_ADDRESS: str = "auto"
+    RAY_NAMESPACE: str = "flexiroaster"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

@@ -48,8 +48,11 @@ async def trigger_from_airflow(
             detail=f"Pipeline not found: {trigger_data.pipeline_id}",
         )
 
+    pipeline = pipelines_db[trigger_data.pipeline_id]
+
     execution = initialize_execution(
         trigger_data.pipeline_id,
+        user_id=pipeline.user_id,
         context={
             "triggered_by": "airflow",
             "airflow": {
