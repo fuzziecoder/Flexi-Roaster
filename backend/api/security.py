@@ -19,8 +19,14 @@ bearer_scheme = HTTPBearer(auto_error=False)
 class TokenRequest(BaseModel):
     """Token request payload for username/password login."""
 
-    username: str
+    username: Optional[str] = None
+    email: Optional[str] = None
     password: str
+
+    @property
+    def principal(self) -> str:
+        """Return the best available login principal from the payload."""
+        return (self.username or self.email or "").strip()
 
 
 class TokenResponse(BaseModel):
@@ -76,17 +82,32 @@ def _create_token(payload: dict) -> str:
     return jwt.encode(token_payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def authenticate_user(username: str, password: str) -> Optional[UserPrincipal]:
+def _candidate_usernames(principal: str) -> List[str]:
+    """Generate username candidates from either username or email principals."""
+    normalized = principal.strip().lower()
+    if not normalized:
+        return []
+
+    candidates = [normalized]
+    if "@" in normalized:
+        candidates.append(normalized.split("@", 1)[0])
+    return candidates
+
+
+def authenticate_user(principal: str, password: str) -> Optional[UserPrincipal]:
     """Validate local user credentials against demo identity store."""
-    record = DEMO_USERS.get(username)
-    if not record or record["password"] != password:
-        return None
-    return UserPrincipal(
-        username=username,
-        roles=list(record["roles"]),
-        scopes=list(record["scopes"]),
-        subject=f"local:{username}",
-    )
+    for username in _candidate_usernames(principal):
+        record = DEMO_USERS.get(username)
+        if not record or record["password"] != password:
+            continue
+
+        return UserPrincipal(
+            username=username,
+            roles=list(record["roles"]),
+            scopes=list(record["scopes"]),
+            subject=f"local:{username}",
+        )
+    return None
 
 
 def create_access_token(user: UserPrincipal) -> TokenResponse:
