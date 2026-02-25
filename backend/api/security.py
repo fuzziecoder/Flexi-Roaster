@@ -36,6 +36,7 @@ class TokenResponse(BaseModel):
 class UserPrincipal:
     """Authenticated user context extracted from the JWT token."""
 
+    user_id: str
     username: str
     roles: List[str]
     scopes: List[str]
@@ -44,9 +45,24 @@ class UserPrincipal:
 
 # Demo identity store. Replace with DB/IdP integration in production.
 DEMO_USERS: Dict[str, Dict[str, List[str] | str]] = {
-    "admin": {"password": "admin123", "roles": ["admin", "operator"], "scopes": ["pipelines:write", "executions:write"]},
-    "operator": {"password": "operator123", "roles": ["operator"], "scopes": ["executions:write"]},
-    "viewer": {"password": "viewer123", "roles": ["viewer"], "scopes": ["pipelines:read"]},
+    "admin": {
+        "id": "user-admin",
+        "password": "admin123",
+        "roles": ["admin", "operator"],
+        "scopes": ["pipelines:write", "executions:write"],
+    },
+    "operator": {
+        "id": "user-operator",
+        "password": "operator123",
+        "roles": ["operator"],
+        "scopes": ["executions:write"],
+    },
+    "viewer": {
+        "id": "user-viewer",
+        "password": "viewer123",
+        "roles": ["viewer"],
+        "scopes": ["pipelines:read"],
+    },
 }
 
 
@@ -82,6 +98,7 @@ def authenticate_user(username: str, password: str) -> Optional[UserPrincipal]:
     if not record or record["password"] != password:
         return None
     return UserPrincipal(
+        user_id=str(record["id"]),
         username=username,
         roles=list(record["roles"]),
         scopes=list(record["scopes"]),
@@ -95,6 +112,7 @@ def create_access_token(user: UserPrincipal) -> TokenResponse:
     token = _create_token(
         {
             "sub": user.subject,
+            "user_id": user.user_id,
             "preferred_username": user.username,
             "roles": user.roles,
             "scope": " ".join(user.scopes),
@@ -112,6 +130,7 @@ def _principal_from_payload(payload: dict) -> UserPrincipal:
     scopes = scope.split() if isinstance(scope, str) and scope else []
     username = payload.get("preferred_username") or payload.get("email") or payload.get("sub", "unknown")
     return UserPrincipal(
+        user_id=payload.get("user_id") or payload.get("sub", username),
         username=username,
         roles=roles,
         scopes=scopes,
@@ -141,7 +160,7 @@ async def get_current_user(
 ) -> UserPrincipal:
     """Return the authenticated principal for protected endpoints."""
     if request.url.path in PUBLIC_PATHS or request.url.path.startswith((f"{settings.API_PREFIX}/docs", f"{settings.API_PREFIX}/openapi", f"{settings.API_PREFIX}/redoc")):
-        return UserPrincipal(username="anonymous", roles=["public"], scopes=[], subject="public")
+        return UserPrincipal(user_id="public", username="anonymous", roles=["public"], scopes=[], subject="public")
 
     if not credentials:
         raise SecurityError(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")

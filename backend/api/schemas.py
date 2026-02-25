@@ -85,6 +85,7 @@ class PipelineUpdate(BaseModel):
 class PipelineResponse(PipelineBase):
     """Schema for pipeline response"""
     id: str
+    user_id: str
     stages: List[StageResponse]
     created_at: datetime
     updated_at: datetime
@@ -143,6 +144,7 @@ class ExecutionResponse(BaseModel):
     """Schema for execution response"""
     id: str
     pipeline_id: str
+    user_id: str
     status: ExecutionStatusSchema
     started_at: datetime
     completed_at: Optional[datetime]
