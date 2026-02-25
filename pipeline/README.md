@@ -2,11 +2,14 @@
 
 A production-ready pipeline automation system built with:
 
-- **Apache Airflow** - Orchestration & scheduling
+- **Apache Airflow / Temporal** - Orchestration & scheduling
 - **FastAPI** - Pipeline execution engine
 - **Redis** - State management, locks, caching
 - **Celery** - Distributed task queue
 - **Kafka** - Event-driven execution streaming
+- **Kubernetes Jobs** - Isolated execution runtime
+- **Ray** - Distributed compute engine
+- **MinIO/Object Storage** - Artifact persistence
 - **PostgreSQL** - Persistence
 - **AI Safety Module** - Failure prediction & anomaly handling
 - **Elasticsearch** - Execution log indexing, fast filtering, analytics
@@ -397,3 +400,13 @@ MIT License
 cd pipeline/backend
 celery -A core.tasks.celery_app worker --loglevel=info --concurrency=4
 ```
+
+
+### Advanced Orchestration Stack API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/advanced-stack/architecture` | Returns the composed stack profile (JWT+RBAC protected) |
+| POST | `/api/advanced-stack/executions` | Creates an orchestration envelope for Airflow/Temporal + K8s + Ray + Kafka |
+
+Security model uses JWT bearer auth with RBAC roles (`admin`, `operator`, `viewer`) and pluggable secrets providers (`env`, `aws`, `vault`).
