@@ -8,6 +8,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from core.enterprise_orchestration import AutoScalingAdvisor
+
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,7 @@ class ExecutionDispatcher:
     def __init__(self):
         self._celery_app: Optional[Celery] = None
         self._kafka_producer: Optional[KafkaProducer] = None
+        self._autoscaling = AutoScalingAdvisor()
 
         if settings.EXECUTION_QUEUE_BACKEND == "celery" and Celery:
             self._celery_app = Celery(
@@ -105,6 +108,22 @@ class ExecutionDispatcher:
         }
         self._kafka_producer.send(settings.KAFKA_EXECUTION_TOPIC, event)
         self._kafka_producer.flush(timeout=2)
+
+    def queue_depth(self) -> int:
+        """Best-effort queue depth for autoscaling signals."""
+        inspect = self._celery_app.control.inspect() if self._celery_app else None
+        if not inspect:
+            return 0
+
+        reserved = inspect.reserved() or {}
+        scheduled = inspect.scheduled() or {}
+        active = inspect.active() or {}
+
+        return sum(len(items) for items in reserved.values()) + sum(len(items) for items in scheduled.values()) + sum(len(items) for items in active.values())
+
+    def autoscaling_recommendation(self, active_workers: int) -> Dict[str, Any]:
+        """Recommend worker count based on observed queue depth."""
+        return self._autoscaling.recommend_workers(self.queue_depth(), active_workers)
 
 
 execution_dispatcher = ExecutionDispatcher()

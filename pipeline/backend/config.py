@@ -138,6 +138,19 @@ class Settings(BaseSettings):
     KAFKA_ENABLED: bool = False
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
     KAFKA_EXECUTION_TOPIC: str = "pipeline.executions"
+    KAFKA_TRIGGER_ENABLED: bool = False
+    KAFKA_TRIGGER_TOPIC: str = "pipeline.triggers"
+    KAFKA_TRIGGER_GROUP: str = "flexiroaster-orchestrator"
+
+    # ===================
+    # Enterprise Orchestration
+    # ===================
+    SLA_DEFAULT_STAGE_THRESHOLD_SECONDS: int = 120
+    WORKER_AUTOSCALING_MIN: int = 1
+    WORKER_AUTOSCALING_MAX: int = 20
+    WORKER_AUTOSCALING_SCALE_UP_THRESHOLD: int = 10
+    WORKER_AUTOSCALING_SCALE_DOWN_THRESHOLD: int = 2
+    WORKER_AUTOSCALING_TARGET_QUEUE_PER_WORKER: int = 3
     
     class Config:
         env_file = ".env"
