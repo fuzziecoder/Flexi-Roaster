@@ -3,7 +3,7 @@ Configuration settings for FlexiRoaster backend.
 """
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 
 class Settings(BaseSettings):
@@ -40,8 +40,9 @@ class Settings(BaseSettings):
     KEYCLOAK_ENABLED: bool = False
     KEYCLOAK_ISSUER: Optional[str] = None
     KEYCLOAK_CLIENT_ID: Optional[str] = None
-    # Event-driven architecture (Kafka)
+    # Event-driven architecture (Kafka / Redpanda)
     ENABLE_EVENT_STREAMING: bool = False
+    EVENT_STREAM_BACKEND: Literal["kafka", "redpanda"] = "kafka"
     KAFKA_BOOTSTRAP_SERVERS: Union[str, List[str]] = "localhost:9092"
     KAFKA_CLIENT_ID: str = "flexiroaster-backend"
 
