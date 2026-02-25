@@ -21,7 +21,7 @@ interface Integration {
     name: string;
     description: string;
     icon: React.ElementType;
-    category: 'database' | 'cloud' | 'notification' | 'api';
+    category: 'database' | 'cloud' | 'warehouse' | 'etl' | 'notification' | 'api';
     isConnected: boolean;
     lastSync?: string;
     profile?: 'balanced' | 'fast' | 'secure';
@@ -46,6 +46,15 @@ const availableIntegrations: Integration[] = [
     { id: 'gcs', name: 'Google Cloud Storage', description: 'GCS bucket storage', icon: Cloud, category: 'cloud', isConnected: false },
     { id: 'azure-blob', name: 'Azure Blob', description: 'Azure Blob storage', icon: Cloud, category: 'cloud', isConnected: false },
 
+    // Data Warehouses
+    { id: 'snowflake', name: 'Snowflake', description: 'Cloud data warehouse for analytics', icon: Database, category: 'warehouse', isConnected: false },
+    { id: 'bigquery', name: 'BigQuery', description: 'Serverless data warehouse on GCP', icon: Database, category: 'warehouse', isConnected: false },
+    { id: 'redshift', name: 'Amazon Redshift', description: 'AWS petabyte-scale data warehouse', icon: Database, category: 'warehouse', isConnected: false },
+
+    // ETL & Transformation
+    { id: 'dbt', name: 'dbt', description: 'Data transformation workflow orchestration', icon: Link2, category: 'etl', isConnected: false },
+    { id: 'spark', name: 'Apache Spark', description: 'Large-scale distributed data processing', icon: Link2, category: 'etl', isConnected: false },
+
     // Notifications
     { id: 'slack', name: 'Slack', description: 'Send notifications to Slack', icon: MessageSquare, category: 'notification', isConnected: false },
     { id: 'email', name: 'Email (SMTP)', description: 'Send email notifications', icon: Mail, category: 'notification', isConnected: false },
@@ -59,6 +68,8 @@ const availableIntegrations: Integration[] = [
 const categoryLabels = {
     database: 'Databases',
     cloud: 'Cloud Storage',
+    warehouse: 'Data Warehouses',
+    etl: 'ETL & Transformation',
     notification: 'Notifications',
     api: 'APIs & Webhooks',
 };
@@ -94,6 +105,35 @@ function ConnectionModal({
                     { key: 'secretKey', label: 'Secret Key', placeholder: '••••••••', type: 'password' },
                     { key: 'bucket', label: 'Bucket Name', placeholder: 'my-bucket' },
                     { key: 'region', label: 'Region', placeholder: 'us-east-1' },
+                ];
+            case 'warehouse':
+                if (integration.id === 'bigquery') {
+                    return [
+                        { key: 'projectId', label: 'Project ID', placeholder: 'my-gcp-project' },
+                        { key: 'dataset', label: 'Dataset', placeholder: 'analytics' },
+                        { key: 'serviceAccountKey', label: 'Service Account JSON', placeholder: '{...}', type: 'password' },
+                        { key: 'location', label: 'Location', placeholder: 'US' },
+                    ];
+                }
+                return [
+                    { key: 'host', label: 'Host', placeholder: integration.id === 'snowflake' ? 'xy12345.us-east-1.snowflakecomputing.com' : 'redshift-cluster.abc.us-east-1.redshift.amazonaws.com' },
+                    { key: 'port', label: 'Port', placeholder: integration.id === 'snowflake' ? '443' : '5439' },
+                    { key: 'database', label: 'Database', placeholder: 'analytics' },
+                    { key: 'username', label: 'Username', placeholder: 'warehouse_user' },
+                    { key: 'password', label: 'Password', placeholder: '••••••••', type: 'password' },
+                ];
+            case 'etl':
+                if (integration.id === 'dbt') {
+                    return [
+                        { key: 'projectPath', label: 'dbt Project Path', placeholder: '/workspace/dbt_project' },
+                        { key: 'target', label: 'Target Environment', placeholder: 'prod' },
+                        { key: 'profilesDir', label: 'Profiles Directory', placeholder: '~/.dbt' },
+                    ];
+                }
+                return [
+                    { key: 'masterUrl', label: 'Spark Master URL', placeholder: 'spark://spark-master:7077' },
+                    { key: 'deployMode', label: 'Deploy Mode', placeholder: 'cluster' },
+                    { key: 'namespace', label: 'Namespace', placeholder: 'data-platform' },
                 ];
             case 'notification':
                 if (integration.id === 'slack') {
@@ -383,7 +423,7 @@ function IntegrationCard({
 }
 
 export function IntegrationsPage() {
-    const [filter, setFilter] = useState<'all' | 'database' | 'cloud' | 'notification' | 'api'>('all');
+    const [filter, setFilter] = useState<'all' | 'database' | 'cloud' | 'warehouse' | 'etl' | 'notification' | 'api'>('all');
     const [search, setSearch] = useState('');
     const [connectingIntegration, setConnectingIntegration] = useState<Integration | null>(null);
     const [configuringIntegration, setConfiguringIntegration] = useState<Integration | null>(null);
@@ -512,7 +552,7 @@ export function IntegrationsPage() {
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    {(['all', 'database', 'cloud', 'notification', 'api'] as const).map(cat => (
+                    {(['all', 'database', 'cloud', 'warehouse', 'etl', 'notification', 'api'] as const).map(cat => (
                         <button
                             key={cat}
                             onClick={() => setFilter(cat)}
