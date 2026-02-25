@@ -36,7 +36,7 @@ def test_dispatcher_falls_back_to_local_for_unknown_backend():
     pipeline = _build_pipeline()
 
     dispatcher = DistributedExecutionDispatcher()
-    result = dispatcher.run(pipeline, backend_override="spark")
+    result = dispatcher.run(pipeline, backend_override="unknown-backend")
 
     assert result.backend_used == "local"
     assert result.execution.status == ExecutionStatus.COMPLETED
@@ -59,3 +59,23 @@ def test_create_execution_tracks_requested_backend_and_backend_used():
 
     assert stored.context["requested_execution_backend"] == "celery"
     assert stored.context["distributed_execution"]["backend_used"] == "local"
+
+
+def test_dispatcher_spark_falls_back_when_dependency_missing():
+    pipeline = _build_pipeline()
+
+    dispatcher = DistributedExecutionDispatcher()
+    result = dispatcher.run(pipeline, backend_override="spark")
+
+    assert result.backend_used in {"spark", "local"}
+    assert result.execution.status == ExecutionStatus.COMPLETED
+
+
+def test_dispatcher_dask_falls_back_when_dependency_missing():
+    pipeline = _build_pipeline()
+
+    dispatcher = DistributedExecutionDispatcher()
+    result = dispatcher.run(pipeline, backend_override="dask")
+
+    assert result.backend_used in {"dask", "local"}
+    assert result.execution.status == ExecutionStatus.COMPLETED

@@ -5,6 +5,8 @@ Implements a configurable orchestration profile that combines:
 - Airflow/Temporal orchestrators
 - Pluggable eventing (Kafka/Pulsar/RabbitMQ/NATS)
 - Kubernetes jobs for execution
+- Ray/Spark/Dask for distributed compute
+- PostgreSQL/CockroachDB/MongoDB/Cassandra + object storage persistence
 - Pluggable distributed compute (Ray/Spark/Dask/Celery)
 - Pluggable storage (PostgreSQL/CockroachDB/MongoDB/Cassandra) + object storage
 - Prometheus/Grafana/ELK observability
@@ -190,6 +192,24 @@ class ModernOrchestrationStack:
                     "service_account": settings.KUBERNETES_SERVICE_ACCOUNT,
                 },
             ).__dict__,
+            "distributed_compute": StackComponent(
+                name="ray",
+                enabled=settings.RAY_ENABLED,
+                config={
+                    "dashboard_url": settings.RAY_DASHBOARD_URL,
+                    "entrypoint": settings.RAY_JOB_ENTRYPOINT,
+                    "alternatives": ["spark", "dask"],
+                },
+            ).__dict__,
+            "storage": {
+                "database": "postgresql",
+                "database_alternatives": ["cockroachdb", "mongodb", "cassandra"],
+                "object_storage": {
+                    "enabled": settings.OBJECT_STORAGE_ENABLED,
+                    "bucket": settings.OBJECT_STORAGE_BUCKET,
+                    "endpoint": settings.OBJECT_STORAGE_ENDPOINT,
+                },
+            },
             "distributed_compute": self._distributed_compute(),
             "storage": self._storage(),
             "monitoring": {
@@ -227,6 +247,33 @@ class ModernOrchestrationStack:
             },
         ]
 
+        if settings.RAY_ENABLED:
+            commands.append(
+                {
+                    "layer": "distributed_compute",
+                    "engine": "ray",
+                    "action": "submit_ray_job",
+                    "dashboard": settings.RAY_DASHBOARD_URL,
+                }
+            )
+        else:
+            commands.append(
+                {
+                    "layer": "distributed_compute",
+                    "engine": "spark",
+                    "action": "submit_spark_job",
+                }
+            )
+
+        if settings.KAFKA_ENABLED:
+            commands.append(
+                {
+                    "layer": "event_layer",
+                    "engine": "kafka",
+                    "action": "publish_event",
+                    "topic": settings.KAFKA_EXECUTION_TOPIC,
+                }
+            )
         compute = self._distributed_compute()
         if compute["enabled"]:
             compute_command = {
