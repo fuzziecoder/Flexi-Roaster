@@ -24,6 +24,15 @@ class ExecutionStatusSchema(str, Enum):
     CANCELLED = "cancelled"
 
 
+class OrchestrationEngineSchema(str, Enum):
+    """Supported orchestration backends for execution launch."""
+
+    LOCAL = "local"
+    AIRFLOW = "airflow"
+    TEMPORAL = "temporal"
+    PREFECT = "prefect"
+
+
 class AirflowCallbackTypeSchema(str, Enum):
     """Supported callback event types from Airflow."""
     SUCCESS = "success"
@@ -85,6 +94,7 @@ class PipelineUpdate(BaseModel):
 class PipelineResponse(PipelineBase):
     """Schema for pipeline response"""
     id: str
+    user_id: str
     stages: List[StageResponse]
     created_at: datetime
     updated_at: datetime
@@ -102,11 +112,22 @@ class PipelineListResponse(BaseModel):
 # Execution Schemas
 class ExecutionCreate(BaseModel):
     """Schema for creating an execution"""
+
+    class OrchestrationConfig(BaseModel):
+        """How a pipeline execution should be orchestrated."""
+
+        engine: OrchestrationEngineSchema = OrchestrationEngineSchema.LOCAL
+        retry_attempts: int = Field(default=1, ge=1, le=10)
+        retry_backoff_seconds: int = Field(default=0, ge=0, le=3600)
+        schedule: Optional[str] = None
+        options: Dict[str, Any] = Field(default_factory=dict)
+
     pipeline_id: str
     execution_backend: Optional[str] = Field(
         default=None,
         description="Optional override for distributed backend: local, celery, or ray",
     )
+    orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
 
 
 class AirflowTriggerRequest(BaseModel):
@@ -147,6 +168,7 @@ class ExecutionResponse(BaseModel):
     """Schema for execution response"""
     id: str
     pipeline_id: str
+    user_id: str
     status: ExecutionStatusSchema
     started_at: datetime
     completed_at: Optional[datetime]

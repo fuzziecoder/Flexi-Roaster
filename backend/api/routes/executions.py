@@ -2,21 +2,30 @@
 Execution management API routes.
 Handles pipeline execution and execution monitoring.
 """
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks
 from typing import Any, Dict, List, Optional
 import uuid
 
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+
 from backend.api.schemas import (
     ExecutionCreate,
-    ExecutionResponse,
     ExecutionDetailResponse,
     ExecutionListResponse,
+    OrchestrationEngineSchema,
     SuccessResponse
 )
 from backend.models.pipeline import Execution, ExecutionStatus
 from backend.core.distributed_executor import DistributedExecutionDispatcher
+from backend.core.executor import PipelineExecutor
+from backend.core.orchestration import OrchestrationEngine, OrchestrationRequest, OrchestrationRegistry
+    ExecutionResponse,
+    SuccessResponse,
+)
+from backend.api.security import UserPrincipal, get_current_user
 from backend.config import settings
+from backend.core.executor import PipelineExecutor
 from backend.events import get_event_publisher
+from backend.models.pipeline import Execution, ExecutionStatus
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
@@ -27,6 +36,27 @@ executions_db: Dict[str, Execution] = {}
 from backend.api.routes.pipelines import pipelines_db
 
 TERMINAL_STATUSES = {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED}
+
+
+ORCHESTRATION_SCHEMA_TO_CORE = {
+    OrchestrationEngineSchema.LOCAL: OrchestrationEngine.LOCAL,
+    OrchestrationEngineSchema.AIRFLOW: OrchestrationEngine.AIRFLOW,
+    OrchestrationEngineSchema.TEMPORAL: OrchestrationEngine.TEMPORAL,
+    OrchestrationEngineSchema.PREFECT: OrchestrationEngine.PREFECT,
+}
+
+
+def _build_orchestration_context(execution_data: ExecutionCreate) -> Dict[str, Any]:
+    orchestration = execution_data.orchestration
+    return {
+        "orchestration": {
+            "engine": orchestration.engine.value,
+            "retry_attempts": orchestration.retry_attempts,
+            "retry_backoff_seconds": orchestration.retry_backoff_seconds,
+            "schedule": orchestration.schedule,
+            "options": orchestration.options.copy(),
+        }
+    }
 
 
 def _merge_execution_context(result_context: Dict[str, Any], existing_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,6 +93,10 @@ def initialize_execution(
     execution_backend: Optional[str] = None,
 ) -> Execution:
     """Create and store a pending execution record."""
+    user_id: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> Execution:
+    """Create and store a pending execution record for a specific user."""
     from datetime import datetime
 
     execution_id = f"exec-{uuid.uuid4()}"
@@ -74,10 +108,12 @@ def initialize_execution(
     execution = Execution(
         id=execution_id,
         pipeline_id=pipeline_id,
+        user_id=user_id,
         status=ExecutionStatus.PENDING,
         started_at=datetime.now(),
         total_stages=len(pipeline.stages),
         context=merged_context
+        context=context or {},
     )
     executions_db[execution_id] = execution
 
@@ -89,6 +125,7 @@ def initialize_execution(
             "pipeline_id": execution.pipeline_id,
             "status": execution.status.value,
             "total_stages": execution.total_stages,
+            "user_id": execution.user_id,
         },
     )
     return execution
@@ -113,12 +150,9 @@ async def execute_pipeline_background(
             result.context = _merge_execution_context(result.context, existing.context)
             result.logs = _merge_execution_logs(result.logs, existing.logs)
             result.started_at = existing.started_at
+            result.user_id = existing.user_id
 
-            # If callbacks have already forced a terminal state, keep callback state.
-            if (
-                existing.status in TERMINAL_STATUSES
-                and existing.context.get("airflow", {}).get("last_callback_type")
-            ):
+            if existing.status in TERMINAL_STATUSES and existing.context.get("airflow", {}).get("last_callback_type"):
                 result.status = existing.status
                 result.completed_at = existing.completed_at
                 result.error = existing.error
@@ -128,7 +162,7 @@ async def execute_pipeline_background(
             existing_context = executions_db[execution_id].context.copy()
             result.context.update(existing_context)
 
-        result.id = execution_id  # Use the pre-assigned ID
+        result.id = execution_id
         executions_db[execution_id] = result
 
         if result.status == ExecutionStatus.COMPLETED:
@@ -142,6 +176,7 @@ async def execute_pipeline_background(
                     "duration_seconds": result.duration,
                     "stages_completed": result.stages_completed,
                     "total_stages": result.total_stages,
+                    "user_id": result.user_id,
                 },
             )
         elif result.status == ExecutionStatus.FAILED:
@@ -155,6 +190,7 @@ async def execute_pipeline_background(
                     "error": result.error,
                     "stages_completed": result.stages_completed,
                     "total_stages": result.total_stages,
+                    "user_id": result.user_id,
                 },
             )
     except Exception as e:
@@ -170,6 +206,7 @@ async def execute_pipeline_background(
                     "pipeline_id": failed_execution.pipeline_id,
                     "status": failed_execution.status.value,
                     "error": failed_execution.error,
+                    "user_id": failed_execution.user_id,
                 },
             )
 
@@ -182,21 +219,19 @@ async def execute_pipeline_background(
 )
 async def create_execution(
     execution_data: ExecutionCreate,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    current_user: UserPrincipal = Depends(get_current_user),
 ):
-    """
-    Start a new pipeline execution.
-    
-    - **pipeline_id**: ID of the pipeline to execute
-    
-    Returns execution ID immediately and runs pipeline in background.
-    """
-    if execution_data.pipeline_id not in pipelines_db:
+    """Start a new pipeline execution for a user-owned pipeline."""
+    pipeline = pipelines_db.get(execution_data.pipeline_id)
+    if pipeline is None or pipeline.user_id != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pipeline not found: {execution_data.pipeline_id}"
         )
     
+    orchestration_context = _build_orchestration_context(execution_data)
+
     # Create execution record
     execution = initialize_execution(
         execution_data.pipeline_id,
@@ -211,6 +246,42 @@ async def create_execution(
         execution_data.execution_backend
     )
     
+    execution = initialize_execution(execution_data.pipeline_id, context=orchestration_context)
+
+    orchestration_engine = ORCHESTRATION_SCHEMA_TO_CORE[execution_data.orchestration.engine]
+    if orchestration_engine == OrchestrationEngine.LOCAL:
+        # Start local execution in background
+        background_tasks.add_task(
+            execute_pipeline_background,
+            execution_data.pipeline_id,
+            execution.id
+        )
+    else:
+        pipeline = pipelines_db[execution_data.pipeline_id]
+        orchestration_request = OrchestrationRequest(
+            engine=orchestration_engine,
+            execution_id=execution.id,
+            pipeline_id=execution.pipeline_id,
+            pipeline_name=pipeline.name,
+            retry_attempts=execution_data.orchestration.retry_attempts,
+            retry_backoff_seconds=execution_data.orchestration.retry_backoff_seconds,
+            schedule=execution_data.orchestration.schedule,
+            options=execution_data.orchestration.options.copy(),
+        )
+        orchestration_result = OrchestrationRegistry().get(orchestration_engine).dispatch(orchestration_request)
+        execution.add_log(
+            None,
+            "INFO",
+            orchestration_result.message,
+            metadata=orchestration_result.metadata,
+        )
+        execution.context.setdefault("orchestration", {}).update(orchestration_result.metadata)
+        execution.status = orchestration_result.status
+
+    execution = initialize_execution(execution_data.pipeline_id, user_id=current_user.user_id)
+
+    background_tasks.add_task(execute_pipeline_background, execution_data.pipeline_id, execution.id)
+
     return execution
 
 
@@ -223,34 +294,23 @@ async def list_executions(
     pipeline_id: str = None,
     status: str = None,
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
+    current_user: UserPrincipal = Depends(get_current_user),
 ):
-    """
-    Get a list of all executions.
-    
-    - **pipeline_id**: Filter by pipeline ID (optional)
-    - **status**: Filter by status (optional)
-    - **skip**: Number of executions to skip (pagination)
-    - **limit**: Maximum number of executions to return
-    """
-    all_executions = list(executions_db.values())
-    
-    # Apply filters
+    """Get execution list scoped to the authenticated user."""
+    all_executions = [e for e in executions_db.values() if e.user_id == current_user.user_id]
+
     if pipeline_id:
         all_executions = [e for e in all_executions if e.pipeline_id == pipeline_id]
     if status:
         all_executions = [e for e in all_executions if e.status.value == status]
-    
-    # Sort by started_at descending
+
     all_executions.sort(key=lambda x: x.started_at, reverse=True)
-    
+
     total = len(all_executions)
-    executions = all_executions[skip : skip + limit]
-    
-    return ExecutionListResponse(
-        executions=executions,
-        total=total
-    )
+    executions = all_executions[skip: skip + limit]
+
+    return ExecutionListResponse(executions=executions, total=total)
 
 
 @router.get(
@@ -258,19 +318,16 @@ async def list_executions(
     response_model=ExecutionDetailResponse,
     summary="Get execution details"
 )
-async def get_execution(execution_id: str):
-    """
-    Get details of a specific execution including logs.
-    
-    - **execution_id**: Unique execution identifier
-    """
-    if execution_id not in executions_db:
+async def get_execution(execution_id: str, current_user: UserPrincipal = Depends(get_current_user)):
+    """Get execution details if it belongs to authenticated user."""
+    execution = executions_db.get(execution_id)
+    if execution is None or execution.user_id != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Execution not found: {execution_id}"
         )
-    
-    return executions_db[execution_id]
+
+    return execution
 
 
 @router.get(
@@ -278,19 +335,15 @@ async def get_execution(execution_id: str):
     response_model=List,
     summary="Get execution logs"
 )
-async def get_execution_logs(execution_id: str):
-    """
-    Get logs for a specific execution.
-    
-    - **execution_id**: Unique execution identifier
-    """
-    if execution_id not in executions_db:
+async def get_execution_logs(execution_id: str, current_user: UserPrincipal = Depends(get_current_user)):
+    """Get logs for a user-owned execution."""
+    execution = executions_db.get(execution_id)
+    if execution is None or execution.user_id != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Execution not found: {execution_id}"
         )
-    
-    execution = executions_db[execution_id]
+
     return execution.logs
 
 
@@ -299,30 +352,24 @@ async def get_execution_logs(execution_id: str):
     response_model=SuccessResponse,
     summary="Cancel execution"
 )
-async def cancel_execution(execution_id: str):
-    """
-    Cancel a running execution.
-    
-    - **execution_id**: Unique execution identifier
-    """
-    if execution_id not in executions_db:
+async def cancel_execution(execution_id: str, current_user: UserPrincipal = Depends(get_current_user)):
+    """Cancel a running user-owned execution."""
+    execution = executions_db.get(execution_id)
+    if execution is None or execution.user_id != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Execution not found: {execution_id}"
         )
-    
-    execution = executions_db[execution_id]
-    
+
     if execution.status not in [ExecutionStatus.PENDING, ExecutionStatus.RUNNING]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot cancel execution with status: {execution.status.value}"
         )
-    
-    execution.status = ExecutionStatus.CANCELLED
+
     from datetime import datetime
+
+    execution.status = ExecutionStatus.CANCELLED
     execution.completed_at = datetime.now()
-    
-    return SuccessResponse(
-        message=f"Execution {execution_id} cancelled successfully"
-    )
+
+    return SuccessResponse(message=f"Execution {execution_id} cancelled successfully")
