@@ -138,6 +138,35 @@ class Settings(BaseSettings):
     KAFKA_ENABLED: bool = False
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
     KAFKA_EXECUTION_TOPIC: str = "pipeline.executions"
+
+    # ===================
+    # Modern Orchestration Stack
+    # ===================
+    ORCHESTRATION_ENGINE: str = "temporal"  # temporal | airflow
+    TEMPORAL_ENABLED: bool = True
+    TEMPORAL_NAMESPACE: str = "default"
+    TEMPORAL_TASK_QUEUE: str = "flexiroaster-orchestration"
+    TEMPORAL_ADDRESS: str = "localhost:7233"
+
+    KUBERNETES_NAMESPACE: str = "flexiroaster"
+    KUBERNETES_JOB_IMAGE: str = "python:3.11-slim"
+    KUBERNETES_SERVICE_ACCOUNT: str = "pipeline-runner"
+
+    RAY_ENABLED: bool = True
+    RAY_DASHBOARD_URL: str = "http://localhost:8265"
+    RAY_JOB_ENTRYPOINT: str = "python -m worker"
+
+    OBJECT_STORAGE_ENABLED: bool = True
+    OBJECT_STORAGE_BUCKET: str = "pipeline-artifacts"
+    OBJECT_STORAGE_ENDPOINT: str = "http://localhost:9000"
+    OBJECT_STORAGE_ACCESS_KEY: str = "minio"
+    OBJECT_STORAGE_SECRET_KEY: str = "minio123"
+
+    JWT_SECRET: str = ""
+    JWT_ISSUER: str = "flexiroaster"
+    JWT_AUDIENCE: str = "flexiroaster-api"
+
+    SECRETS_PROVIDER: str = "env"  # env | aws | vault
     
     class Config:
         env_file = ".env"
