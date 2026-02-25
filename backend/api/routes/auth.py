@@ -11,7 +11,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/token", summary="Issue JWT access token")
 async def issue_token(payload: TokenRequest):
-    user = authenticate_user(payload.username, payload.password)
+    principal = payload.principal
+    if not principal:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="username or email is required")
+
+    user = authenticate_user(principal, payload.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     return create_access_token(user)
