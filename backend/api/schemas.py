@@ -125,7 +125,7 @@ class ExecutionCreate(BaseModel):
     pipeline_id: str
     execution_backend: Optional[str] = Field(
         default=None,
-        description="Optional override for distributed backend: local, celery, or ray",
+        description="Optional override for distributed backend: local, celery, ray, spark, or dask",
     )
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
 

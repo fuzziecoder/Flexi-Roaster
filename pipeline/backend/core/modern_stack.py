@@ -5,8 +5,8 @@ Implements a configurable orchestration profile that combines:
 - Airflow/Temporal orchestrators
 - Kafka eventing
 - Kubernetes jobs for execution
-- Ray for distributed compute
-- PostgreSQL + object storage persistence
+- Ray/Spark/Dask for distributed compute
+- PostgreSQL/CockroachDB/MongoDB/Cassandra + object storage persistence
 - Prometheus/Grafana/ELK observability
 - JWT + RBAC + secrets manager security
 """
@@ -71,10 +71,12 @@ class ModernOrchestrationStack:
                 config={
                     "dashboard_url": settings.RAY_DASHBOARD_URL,
                     "entrypoint": settings.RAY_JOB_ENTRYPOINT,
+                    "alternatives": ["spark", "dask"],
                 },
             ).__dict__,
             "storage": {
                 "database": "postgresql",
+                "database_alternatives": ["cockroachdb", "mongodb", "cassandra"],
                 "object_storage": {
                     "enabled": settings.OBJECT_STORAGE_ENABLED,
                     "bucket": settings.OBJECT_STORAGE_BUCKET,
@@ -123,6 +125,14 @@ class ModernOrchestrationStack:
                     "engine": "ray",
                     "action": "submit_ray_job",
                     "dashboard": settings.RAY_DASHBOARD_URL,
+                }
+            )
+        else:
+            commands.append(
+                {
+                    "layer": "distributed_compute",
+                    "engine": "spark",
+                    "action": "submit_spark_job",
                 }
             )
 

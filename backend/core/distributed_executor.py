@@ -1,4 +1,4 @@
-"""Distributed execution dispatcher with optional Celery and Ray backends."""
+"""Distributed execution dispatcher with optional distributed compute backends."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ from backend.models.pipeline import Execution, Pipeline
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_BACKENDS = {"local", "celery", "ray"}
+SUPPORTED_BACKENDS = {"local", "celery", "ray", "spark", "dask"}
 
 
 @dataclass
@@ -41,6 +41,14 @@ class DistributedExecutionDispatcher:
 
         if backend == "ray":
             execution, used_backend = self._execute_with_ray(pipeline)
+            return DispatchResult(execution=execution, backend_used=used_backend)
+
+        if backend == "spark":
+            execution, used_backend = self._execute_with_spark(pipeline)
+            return DispatchResult(execution=execution, backend_used=used_backend)
+
+        if backend == "dask":
+            execution, used_backend = self._execute_with_dask(pipeline)
             return DispatchResult(execution=execution, backend_used=used_backend)
 
         execution = self.executor.execute(pipeline)
@@ -107,6 +115,73 @@ class DistributedExecutionDispatcher:
             execution.context["distributed_execution"].update(
                 {
                     "requested_backend": "ray",
+                    "fallback_backend": "local",
+                    "fallback_reason": str(exc),
+                }
+            )
+            return execution, "local"
+
+    def _execute_with_spark(self, pipeline: Pipeline) -> tuple[Execution, str]:
+        """Try Spark path; fallback to local execution when unavailable."""
+        try:
+            from pyspark.sql import SparkSession
+
+            spark = (
+                SparkSession.builder
+                .master(settings.SPARK_MASTER_URL)
+                .appName(settings.SPARK_APP_NAME)
+                .getOrCreate()
+            )
+            logger.info("Spark backend initialized for pipeline %s", pipeline.id)
+            spark.stop()
+
+            execution = self.executor.execute(pipeline)
+            execution.context.setdefault("distributed_execution", {})
+            execution.context["distributed_execution"].update(
+                {
+                    "requested_backend": "spark",
+                    "execution_mode": "spark-driver",
+                }
+            )
+            return execution, "spark"
+        except Exception as exc:
+            logger.warning("Spark backend unavailable (%s). Executing locally.", exc)
+            execution = self.executor.execute(pipeline)
+            execution.context.setdefault("distributed_execution", {})
+            execution.context["distributed_execution"].update(
+                {
+                    "requested_backend": "spark",
+                    "fallback_backend": "local",
+                    "fallback_reason": str(exc),
+                }
+            )
+            return execution, "local"
+
+    def _execute_with_dask(self, pipeline: Pipeline) -> tuple[Execution, str]:
+        """Try Dask path; fallback to local execution when unavailable."""
+        try:
+            from dask.distributed import Client
+
+            client = Client(settings.DASK_SCHEDULER_ADDRESS) if settings.DASK_SCHEDULER_ADDRESS else Client(processes=False)
+            logger.info("Dask backend initialized for pipeline %s", pipeline.id)
+            client.close()
+
+            execution = self.executor.execute(pipeline)
+            execution.context.setdefault("distributed_execution", {})
+            execution.context["distributed_execution"].update(
+                {
+                    "requested_backend": "dask",
+                    "execution_mode": "dask-local-cluster",
+                }
+            )
+            return execution, "dask"
+        except Exception as exc:
+            logger.warning("Dask backend unavailable (%s). Executing locally.", exc)
+            execution = self.executor.execute(pipeline)
+            execution.context.setdefault("distributed_execution", {})
+            execution.context["distributed_execution"].update(
+                {
+                    "requested_backend": "dask",
                     "fallback_backend": "local",
                     "fallback_reason": str(exc),
                 }

@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     TOPIC_EXECUTION_FAILED: str = "execution.failed"
     TOPIC_EXECUTION_COMPLETED: str = "execution.completed"
 
-    # Distributed execution backends: local|celery|ray
+    # Distributed execution backends: local|celery|ray|spark|dask
     DISTRIBUTED_EXECUTION_BACKEND: str = "local"
 
     # Celery settings
@@ -62,6 +62,19 @@ class Settings(BaseSettings):
     # Ray settings
     RAY_ADDRESS: str = "auto"
     RAY_NAMESPACE: str = "flexiroaster"
+
+    # Spark settings
+    SPARK_MASTER_URL: str = "local[*]"
+    SPARK_APP_NAME: str = "flexiroaster"
+
+    # Dask settings
+    DASK_SCHEDULER_ADDRESS: str = ""
+
+    # Database engine selection
+    DATABASE_BACKEND: Literal["sqlite", "postgresql", "cockroachdb", "mongodb", "cassandra"] = "sqlite"
+    MONGODB_URL: str = "mongodb://localhost:27017/flexiroaster"
+    CASSANDRA_CONTACT_POINTS: Union[str, List[str]] = "localhost"
+    CASSANDRA_KEYSPACE: str = "flexiroaster"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -79,6 +92,14 @@ class Settings(BaseSettings):
             return [server.strip() for server in v.split(",") if server.strip()]
         return v
     
+
+    @field_validator("CASSANDRA_CONTACT_POINTS", mode="before")
+    @classmethod
+    def parse_cassandra_contact_points(cls, v):
+        """Parse CASSANDRA_CONTACT_POINTS from comma-separated values or return list as-is."""
+        if isinstance(v, str):
+            return [host.strip() for host in v.split(",") if host.strip()]
+        return v
     # Database
     DATABASE_URL: str = "sqlite:///./flexiroaster.db"
     

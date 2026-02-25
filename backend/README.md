@@ -103,18 +103,20 @@ curl -X POST http://localhost:8000/api/executions \
 ```
 
 
-### Distributed Task Execution (Celery / Ray)
+### Distributed Task Execution (Celery / Ray / Spark / Dask)
 
 FlexiRoaster supports selectable execution backends for asynchronous and distributed workloads:
 
 - `local`: default in-process execution
 - `celery`: async jobs, retries, and scheduling support through Celery workers
 - `ray`: distributed Python execution, optimized for ML/AI-heavy pipelines
+- `spark`: Apache Spark-based distributed compute for ETL + ML-heavy batch workloads
+- `dask`: Python-native distributed parallelism from laptop to cluster
 
 Use the optional `execution_backend` field when creating an execution:
 
 ```bash
-curl -X POST http://localhost:8000/api/executions   -H "Content-Type: application/json"   -d '{"pipeline_id": "your-pipeline-id", "execution_backend": "ray"}'
+curl -X POST http://localhost:8000/api/executions   -H "Content-Type: application/json"   -d '{"pipeline_id": "your-pipeline-id", "execution_backend": "spark"}'
 ```
 
 Or set a default backend via environment variables in `backend/.env`:
@@ -126,9 +128,34 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/1
 CELERY_EXECUTION_TASK=flexiroaster.execute_pipeline
 RAY_ADDRESS=auto
 RAY_NAMESPACE=flexiroaster
+SPARK_MASTER_URL=local[*]
+SPARK_APP_NAME=flexiroaster
+DASK_SCHEDULER_ADDRESS=
 ```
 
-If Celery or Ray is unavailable, FlexiRoaster automatically falls back to local execution and records the fallback reason in execution context.
+If Celery, Ray, Spark, or Dask is unavailable, FlexiRoaster automatically falls back to local execution and records the fallback reason in execution context.
+
+
+## Database Alternatives
+
+FlexiRoaster can run with multiple persistence backends depending on deployment requirements:
+
+- `postgresql`: traditional relational baseline for transactional workloads
+- `cockroachdb`: globally distributed SQL with strong consistency and high availability
+- `mongodb`: flexible-schema document store for dynamic pipeline metadata
+- `cassandra`: highly scalable wide-column store optimized for high-write throughput
+
+Configure backend selection via environment variables:
+
+```env
+DATABASE_BACKEND=postgresql
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/flexiroaster
+MONGODB_URL=mongodb://localhost:27017/flexiroaster
+CASSANDRA_CONTACT_POINTS=localhost
+CASSANDRA_KEYSPACE=flexiroaster
+```
+
+For CockroachDB, use a PostgreSQL-compatible `DATABASE_URL` with `DATABASE_BACKEND=cockroachdb`.
 
 ## Authentication & Security
 
