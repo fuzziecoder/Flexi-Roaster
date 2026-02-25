@@ -49,3 +49,9 @@ kafka-python==2.0.2
 # gRPC internal service communication
 grpcio==1.65.5
 grpcio-tools==1.65.5
+
+# Advanced orchestration stack
+temporalio==1.8.0
+kubernetes==30.1.0
+ray[default]==2.37.0
+boto3==1.35.17

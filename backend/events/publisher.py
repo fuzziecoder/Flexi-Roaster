@@ -1,4 +1,4 @@
-"""Kafka-backed event publisher with graceful fallback for local/dev environments."""
+"""Kafka/Redpanda-backed event publisher with graceful fallback for local/dev environments."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class EventPublisher:
             return self._producer
 
         if KafkaProducer is None:
-            logger.warning("Event streaming enabled but kafka-python is not installed.")
+            logger.warning("Event streaming enabled for %s but kafka-python is not installed.", settings.EVENT_STREAM_BACKEND)
             return None
 
         try:
@@ -48,13 +48,14 @@ class EventPublisher:
             )
             return self._producer
         except Exception as exc:  # pragma: no cover - depends on external broker
-            logger.warning("Failed to initialize Kafka producer: %s", exc)
+            logger.warning("Failed to initialize %s producer: %s", settings.EVENT_STREAM_BACKEND, exc)
             return None
 
     def publish(self, topic: str, key: Optional[str], payload: Dict[str, Any]) -> None:
         """Publish a single event with standard envelope metadata."""
         event = {
             "event_type": topic,
+            "stream_backend": settings.EVENT_STREAM_BACKEND,
             "published_at": datetime.now().isoformat(),
             "payload": payload,
         }
