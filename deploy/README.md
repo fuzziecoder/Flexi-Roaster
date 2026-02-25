@@ -8,6 +8,8 @@ This repository now includes container and Kubernetes deployment assets that sup
 - Rolling updates
 - Self-healing pods (liveness/readiness probes)
 - Worker isolation (dedicated worker deployment + node scheduling hints)
+- Job-based stage execution
+- CronJob-based scheduled pipeline execution
 
 ## Docker
 
@@ -44,6 +46,37 @@ kubectl apply -k deploy/k8s
 - `worker.yaml`: isolated worker deployment with node selector/tolerations.
 - `autoscaling.yaml`: HPAs for backend and worker.
 - `namespace.yaml`: dedicated namespace.
+- `stage-execution-job.yaml`: one-off isolated stage execution job template.
+- `pipeline-scheduler-cronjob.yaml`: scheduled pipeline launcher using Kubernetes CronJobs.
+
+
+### Job-based stage execution
+
+Run a one-off stage execution in an isolated container:
+
+```bash
+kubectl apply -f deploy/k8s/stage-execution-job.yaml
+```
+
+This Job includes:
+- `backoffLimit` retries for transient failures
+- `activeDeadlineSeconds` for hung-task protection
+- `ttlSecondsAfterFinished` for automatic cleanup
+- worker `nodeSelector` + tolerations for resource isolation
+
+### Scheduled pipelines with CronJobs
+
+Use Kubernetes CronJobs for recurring pipeline runs:
+
+```bash
+kubectl apply -f deploy/k8s/pipeline-scheduler-cronjob.yaml
+```
+
+The CronJob is configured for operational safety:
+- `concurrencyPolicy: Forbid` to avoid overlapping runs
+- execution deadline and retry limits
+- retained job history for troubleshooting
+- worker node pinning for isolated execution
 
 ## Managed Kubernetes options
 

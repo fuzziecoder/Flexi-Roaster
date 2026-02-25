@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: flexiroaster-pipeline-scheduler
+  namespace: flexiroaster
+  labels:
+    app: flexiroaster-pipeline-scheduler
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 1800
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: flexiroaster-pipeline-scheduler
+        spec:
+          restartPolicy: Never
+          nodeSelector:
+            workload: worker
+          tolerations:
+            - key: "dedicated"
+              operator: "Equal"
+              value: "worker"
+              effect: "NoSchedule"
+          containers:
+            - name: scheduled-pipeline-runner
+              image: ghcr.io/your-org/flexiroaster-backend:latest
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "backend.cli", "execute", "--pipeline", "/app/backend/examples/sample_pipeline.yaml"]
+              env:
+                - name: PIPELINE_ID
+                  value: "sample-pipeline"
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "1500m"
+                  memory: "2Gi"
