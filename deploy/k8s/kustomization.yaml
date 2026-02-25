@@ -6,3 +6,5 @@ resources:
   - frontend.yaml
   - worker.yaml
   - autoscaling.yaml
+  - stage-execution-job.yaml
+  - pipeline-scheduler-cronjob.yaml

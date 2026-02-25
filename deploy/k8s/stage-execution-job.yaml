@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flexiroaster-stage-execution
+  namespace: flexiroaster
+  labels:
+    app: flexiroaster-stage
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 3
+  activeDeadlineSeconds: 3600
+  parallelism: 1
+  completions: 1
+  template:
+    metadata:
+      labels:
+        app: flexiroaster-stage
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        workload: worker
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "worker"
+          effect: "NoSchedule"
+      containers:
+        - name: stage-runner
+          image: ghcr.io/your-org/flexiroaster-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "backend.cli", "execute", "--pipeline", "/app/backend/examples/sample_pipeline.yaml"]
+          env:
+            - name: PIPELINE_ID
+              value: "sample-pipeline"
+            - name: STAGE_ID
+              value: "stage-1"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1500m"
+              memory: "2Gi"
