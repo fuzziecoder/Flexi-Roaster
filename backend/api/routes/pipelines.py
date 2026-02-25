@@ -2,10 +2,11 @@
 Pipeline management API routes.
 Handles CRUD operations for pipelines.
 """
-from fastapi import APIRouter, HTTPException, status
-from typing import List, Dict
-import uuid
 from datetime import datetime
+from typing import Dict
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.api.schemas import (
     PipelineCreate,
@@ -13,13 +14,12 @@ from backend.api.schemas import (
     PipelineResponse,
     PipelineListResponse,
     SuccessResponse,
-    ErrorResponse,
-    StageResponse
 )
-from backend.models.pipeline import Pipeline, Stage, StageType
-from backend.core.pipeline_engine import PipelineEngine
+from backend.api.security import UserPrincipal, get_current_user
 from backend.config import settings
+from backend.core.pipeline_engine import PipelineEngine
 from backend.events import get_event_publisher
+from backend.models.pipeline import Pipeline, Stage, StageType
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
@@ -33,38 +33,31 @@ pipelines_db: Dict[str, Pipeline] = {}
     status_code=status.HTTP_201_CREATED,
     summary="Create a new pipeline"
 )
-async def create_pipeline(pipeline_data: PipelineCreate):
-    """
-    Create a new pipeline with stages.
-    
-    - **name**: Pipeline name
-    - **description**: Pipeline description
-    - **stages**: List of pipeline stages
-    """
+async def create_pipeline(pipeline_data: PipelineCreate, current_user: UserPrincipal = Depends(get_current_user)):
+    """Create a new pipeline with stages for the authenticated user."""
     try:
-        # Create stages
         stages = []
         for stage_data in pipeline_data.stages:
-            stage = Stage(
-                id=stage_data.id or str(uuid.uuid4()),
-                name=stage_data.name,
-                type=StageType(stage_data.type.value),
-                config=stage_data.config,
-                dependencies=stage_data.dependencies
+            stages.append(
+                Stage(
+                    id=stage_data.id or str(uuid.uuid4()),
+                    name=stage_data.name,
+                    type=StageType(stage_data.type.value),
+                    config=stage_data.config,
+                    dependencies=stage_data.dependencies,
+                )
             )
-            stages.append(stage)
-        
-        # Create pipeline
+
         pipeline = Pipeline(
             id=str(uuid.uuid4()),
             name=pipeline_data.name,
             description=pipeline_data.description,
             stages=stages,
+            user_id=current_user.user_id,
             created_at=datetime.now(),
-            updated_at=datetime.now()
+            updated_at=datetime.now(),
         )
-        
-        # Validate pipeline
+
         engine = PipelineEngine()
         is_valid, errors = engine.validate_pipeline(pipeline)
         if not is_valid:
@@ -72,11 +65,9 @@ async def create_pipeline(pipeline_data: PipelineCreate):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid pipeline: {', '.join(errors)}"
             )
-        
-        # Store pipeline
+
         pipelines_db[pipeline.id] = pipeline
 
-        # Publish event: pipeline.created
         get_event_publisher().publish(
             topic=settings.TOPIC_PIPELINE_CREATED,
             key=pipeline.id,
@@ -85,16 +76,14 @@ async def create_pipeline(pipeline_data: PipelineCreate):
                 "name": pipeline.name,
                 "description": pipeline.description,
                 "stage_count": len(pipeline.stages),
+                "user_id": pipeline.user_id,
             },
         )
 
         return pipeline
-        
+
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get(
@@ -102,21 +91,17 @@ async def create_pipeline(pipeline_data: PipelineCreate):
     response_model=PipelineListResponse,
     summary="List all pipelines"
 )
-async def list_pipelines(skip: int = 0, limit: int = 100):
-    """
-    Get a list of all pipelines.
-    
-    - **skip**: Number of pipelines to skip (pagination)
-    - **limit**: Maximum number of pipelines to return
-    """
-    all_pipelines = list(pipelines_db.values())
-    total = len(all_pipelines)
-    pipelines = all_pipelines[skip : skip + limit]
-    
-    return PipelineListResponse(
-        pipelines=pipelines,
-        total=total
-    )
+async def list_pipelines(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: UserPrincipal = Depends(get_current_user),
+):
+    """Get pipelines only for the authenticated user."""
+    scoped_pipelines = [p for p in pipelines_db.values() if p.user_id == current_user.user_id]
+    total = len(scoped_pipelines)
+    pipelines = scoped_pipelines[skip: skip + limit]
+
+    return PipelineListResponse(pipelines=pipelines, total=total)
 
 
 @router.get(
@@ -124,19 +109,16 @@ async def list_pipelines(skip: int = 0, limit: int = 100):
     response_model=PipelineResponse,
     summary="Get pipeline details"
 )
-async def get_pipeline(pipeline_id: str):
-    """
-    Get details of a specific pipeline.
-    
-    - **pipeline_id**: Unique pipeline identifier
-    """
-    if pipeline_id not in pipelines_db:
+async def get_pipeline(pipeline_id: str, current_user: UserPrincipal = Depends(get_current_user)):
+    """Get a specific pipeline if it belongs to authenticated user."""
+    pipeline = pipelines_db.get(pipeline_id)
+    if pipeline is None or pipeline.user_id != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pipeline not found: {pipeline_id}"
         )
-    
-    return pipelines_db[pipeline_id]
+
+    return pipeline
 
 
 @router.put(
@@ -144,24 +126,19 @@ async def get_pipeline(pipeline_id: str):
     response_model=PipelineResponse,
     summary="Update a pipeline"
 )
-async def update_pipeline(pipeline_id: str, pipeline_data: PipelineUpdate):
-    """
-    Update an existing pipeline.
-    
-    - **pipeline_id**: Unique pipeline identifier
-    - **name**: New pipeline name (optional)
-    - **description**: New pipeline description (optional)
-    - **stages**: New stages list (optional)
-    """
-    if pipeline_id not in pipelines_db:
+async def update_pipeline(
+    pipeline_id: str,
+    pipeline_data: PipelineUpdate,
+    current_user: UserPrincipal = Depends(get_current_user),
+):
+    """Update a user-owned pipeline."""
+    pipeline = pipelines_db.get(pipeline_id)
+    if pipeline is None or pipeline.user_id != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pipeline not found: {pipeline_id}"
         )
-    
-    pipeline = pipelines_db[pipeline_id]
-    
-    # Update fields
+
     if pipeline_data.name is not None:
         pipeline.name = pipeline_data.name
     if pipeline_data.description is not None:
@@ -169,19 +146,19 @@ async def update_pipeline(pipeline_id: str, pipeline_data: PipelineUpdate):
     if pipeline_data.stages is not None:
         stages = []
         for stage_data in pipeline_data.stages:
-            stage = Stage(
-                id=stage_data.id or str(uuid.uuid4()),
-                name=stage_data.name,
-                type=StageType(stage_data.type.value),
-                config=stage_data.config,
-                dependencies=stage_data.dependencies
+            stages.append(
+                Stage(
+                    id=stage_data.id or str(uuid.uuid4()),
+                    name=stage_data.name,
+                    type=StageType(stage_data.type.value),
+                    config=stage_data.config,
+                    dependencies=stage_data.dependencies,
+                )
             )
-            stages.append(stage)
         pipeline.stages = stages
-    
+
     pipeline.updated_at = datetime.now()
-    
-    # Validate updated pipeline
+
     engine = PipelineEngine()
     is_valid, errors = engine.validate_pipeline(pipeline)
     if not is_valid:
@@ -189,9 +166,8 @@ async def update_pipeline(pipeline_id: str, pipeline_data: PipelineUpdate):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid pipeline: {', '.join(errors)}"
         )
-    
+
     pipelines_db[pipeline_id] = pipeline
-    
     return pipeline
 
 
@@ -200,20 +176,15 @@ async def update_pipeline(pipeline_id: str, pipeline_data: PipelineUpdate):
     response_model=SuccessResponse,
     summary="Delete a pipeline"
 )
-async def delete_pipeline(pipeline_id: str):
-    """
-    Delete a pipeline.
-    
-    - **pipeline_id**: Unique pipeline identifier
-    """
-    if pipeline_id not in pipelines_db:
+async def delete_pipeline(pipeline_id: str, current_user: UserPrincipal = Depends(get_current_user)):
+    """Delete a user-owned pipeline."""
+    pipeline = pipelines_db.get(pipeline_id)
+    if pipeline is None or pipeline.user_id != current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pipeline not found: {pipeline_id}"
         )
-    
+
     del pipelines_db[pipeline_id]
-    
-    return SuccessResponse(
-        message=f"Pipeline {pipeline_id} deleted successfully"
-    )
+
+    return SuccessResponse(message=f"Pipeline {pipeline_id} deleted successfully")

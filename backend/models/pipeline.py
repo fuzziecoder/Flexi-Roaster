@@ -41,7 +41,7 @@ class Stage:
     type: StageType
     config: Dict[str, Any]
     dependencies: List[str] = field(default_factory=list)
-    
+
     def __post_init__(self):
         if isinstance(self.type, str):
             self.type = StageType(self.type)
@@ -54,9 +54,10 @@ class Pipeline:
     name: str
     description: str
     stages: List[Stage]
+    user_id: str
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
-    
+
     def get_stage(self, stage_id: str) -> Optional[Stage]:
         """Get a stage by ID"""
         for stage in self.stages:
@@ -75,7 +76,7 @@ class LogEntry:
     message: str
     timestamp: datetime = field(default_factory=datetime.now)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         if isinstance(self.level, str):
             self.level = LogLevel(self.level)
@@ -86,6 +87,7 @@ class Execution:
     """Represents a pipeline execution instance"""
     id: str
     pipeline_id: str
+    user_id: str
     status: ExecutionStatus
     started_at: datetime
     completed_at: Optional[datetime] = None
@@ -94,11 +96,11 @@ class Execution:
     context: Dict[str, Any] = field(default_factory=dict)
     stages_completed: int = 0
     total_stages: int = 0
-    
+
     def __post_init__(self):
         if isinstance(self.status, str):
             self.status = ExecutionStatus(self.status)
-    
+
     def add_log(self, stage_id: Optional[str], level: LogLevel, message: str, metadata: Dict[str, Any] = None):
         """Add a log entry to this execution"""
         log_entry = LogEntry(
@@ -110,7 +112,7 @@ class Execution:
             metadata=metadata or {}
         )
         self.logs.append(log_entry)
-    
+
     @property
     def duration(self) -> Optional[float]:
         """Calculate execution duration in seconds"""
