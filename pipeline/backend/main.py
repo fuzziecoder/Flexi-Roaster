@@ -3,6 +3,7 @@ FlexiRoaster Pipeline Automation - FastAPI Application.
 Production-ready REST API for pipeline orchestration.
 """
 import logging
+import asyncio
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -17,6 +18,7 @@ from config import settings
 from db import create_tables
 from core.redis_state import redis_state_manager
 from core.executor import pipeline_executor
+from api.routes import ai_automation, executions, health, microservices, model_infra, monitoring, orchestration, pipelines
 from api.routes import (
     advanced_stack,
     ai_automation,
@@ -29,6 +31,8 @@ from api.routes import (
 )
 from core.elasticsearch_client import elasticsearch_manager
 from observability import setup_observability
+from core.enterprise_orchestration import DynamicDAGGenerator, KafkaExecutionTrigger
+from db import get_db, PipelineCRUD
 
 
 # ===================
@@ -62,6 +66,51 @@ def setup_logging():
 setup_logging()
 logger = logging.getLogger(__name__)
 
+kafka_trigger = KafkaExecutionTrigger()
+
+
+async def _handle_kafka_trigger_event(event: dict):
+    """Handle Kafka event and execute generated or stored pipeline."""
+    pipeline_id = event.get("pipeline_id", "event-driven")
+    pipeline_name = event.get("pipeline_name", pipeline_id)
+    metadata = event.get("metadata")
+
+    if metadata:
+        spec = DynamicDAGGenerator().generate(metadata)
+        stages = spec.stages
+    else:
+        with get_db() as db:
+            pipeline = PipelineCRUD.get_by_id(db, pipeline_id)
+            if not pipeline or not pipeline.is_active:
+                logger.warning("Ignoring Kafka trigger for unknown/inactive pipeline", extra={"pipeline_id": pipeline_id})
+                return
+            pipeline_name = pipeline.name
+            stages = [
+                {
+                    "id": s.stage_id,
+                    "name": s.name,
+                    "type": s.stage_type,
+                    "config": s.config or {},
+                    "dependencies": s.dependencies or [],
+                    "timeout": s.timeout,
+                    "max_retries": s.max_retries,
+                    "retry_delay": s.retry_delay,
+                    "is_critical": s.is_critical,
+                }
+                for s in pipeline.stages
+            ]
+
+    await pipeline_executor.execute_pipeline(
+        pipeline_id=pipeline_id,
+        pipeline_name=pipeline_name,
+        stages=stages,
+        variables=event.get("variables", {}),
+        triggered_by="kafka",
+        trigger_metadata={"event": event},
+    )
+
+
+
 
 # ===================
 # Application Lifecycle
@@ -89,12 +138,19 @@ async def lifespan(app: FastAPI):
     await elasticsearch_manager.initialize()
     logger.info("Elasticsearch manager initialized")
     
+    kafka_task = None
+    if settings.KAFKA_TRIGGER_ENABLED:
+        kafka_task = asyncio.create_task(kafka_trigger.consume(_handle_kafka_trigger_event))
+
     logger.info(f"Application ready on {settings.HOST}:{settings.PORT}")
     
     yield
     
     # Shutdown
     logger.info("Shutting down application...")
+    kafka_trigger.stop()
+    if kafka_task:
+        await kafka_task
     await pipeline_executor.shutdown()
     await redis_state_manager.close()
     await elasticsearch_manager.close()
@@ -203,6 +259,7 @@ app.include_router(monitoring.router, prefix=settings.API_PREFIX)
 app.include_router(ai_automation.router, prefix=settings.API_PREFIX)
 app.include_router(microservices.router, prefix=settings.API_PREFIX)
 app.include_router(model_infra.router, prefix=settings.API_PREFIX)
+app.include_router(orchestration.router, prefix=settings.API_PREFIX)
 app.include_router(advanced_stack.router, prefix=settings.API_PREFIX)
 
 

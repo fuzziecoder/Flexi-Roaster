@@ -15,6 +15,7 @@ from config import settings
 from core.redis_state import redis_state_manager, ExecutionState
 from ai.safety_engine import ai_safety_engine, SafeAction, PipelineStats, RiskAssessment
 from core.distributed_execution import execution_dispatcher
+from core.enterprise_orchestration import DependencyGraphOptimizer, SLAMonitor
 from db import (
     get_db, ExecutionDB, StageExecutionDB, LogDB, AIInsightDB,
     ExecutionCRUD, StageExecutionCRUD, LogCRUD, AIInsightCRUD, MetricCRUD,
@@ -67,6 +68,8 @@ class PipelineExecutor:
         self._shutdown_event = asyncio.Event()
         self._active_executions: Dict[str, ExecutionContext] = {}
         self._heartbeat_tasks: Dict[str, asyncio.Task] = {}
+        self._graph_optimizer = DependencyGraphOptimizer()
+        self._sla_monitor = SLAMonitor(on_alert=self._handle_sla_alert)
         
         # Stage handlers registry
         self._stage_handlers: Dict[str, Callable] = {
@@ -295,21 +298,20 @@ class PipelineExecutor:
             }
     
     async def _execute_stages(self, context: ExecutionContext) -> Dict[str, Any]:
-        """Execute all stages in order with proper error handling"""
+        """Execute stages by optimized dependency groups with parallelization."""
         execution_id = context.execution_id
-        execution_order = self._get_execution_order(context.stages)
-        
+        optimized = self._graph_optimizer.optimize([self._stage_to_dict(s) for s in context.stages])
+
         with get_db() as db:
             ExecutionCRUD.update_status(
                 db, execution_id, ExecutionStatus.RUNNING
             )
             LogCRUD.create(
                 db, execution_id, "info",
-                f"Execution order: {' -> '.join(execution_order)}"
+                f"Optimized execution groups: {optimized.parallel_groups}"
             )
-        
-        for stage_id in execution_order:
-            # Check for shutdown or cancellation
+
+        for group in optimized.parallel_groups:
             if self._shutdown_event.is_set() or context.is_cancelled:
                 await self._handle_cancellation(context)
                 return {
@@ -318,53 +320,53 @@ class PipelineExecutor:
                     "status": "cancelled",
                     "completed_stages": context.completed_stages
                 }
-            
-            # Check for pause
+
             while context.is_paused:
                 await asyncio.sleep(1)
                 if self._shutdown_event.is_set():
                     break
-            
-            # Get stage config
-            stage = next((s for s in context.stages if s.id == stage_id), None)
-            if not stage:
-                raise ValueError(f"Stage not found: {stage_id}")
-            
-            context.current_stage = stage_id
-            
-            # Execute stage with retries
-            success = await self._execute_stage_with_retry(context, stage)
-            
-            if not success:
-                # AI determines safe action
-                action, explanation = ai_safety_engine.select_safe_action(
-                    context={
-                        "error": context.results.get(stage_id, {}).get("error"),
-                        "risk_level": "medium"
-                    },
-                    is_stage_critical=stage.is_critical,
-                    retry_count=settings.EXECUTOR_MAX_RETRIES,
-                    max_retries=settings.EXECUTOR_MAX_RETRIES
-                )
-                
-                if action == SafeAction.SKIP_STAGE:
-                    with get_db() as db:
-                        LogCRUD.create(
-                            db, execution_id, "warning",
-                            f"Skipping non-critical stage {stage_id}: {explanation}",
-                            stage_id=stage_id
-                        )
-                    continue
-                elif action == SafeAction.ROLLBACK:
-                    await self._perform_rollback(context)
-                    return {
-                        "success": False,
-                        "execution_id": execution_id,
-                        "status": "rolled_back",
-                        "completed_stages": context.completed_stages,
-                        "error": f"Rolled back after stage {stage_id} failure"
-                    }
-                elif action in [SafeAction.PAUSE_PIPELINE, SafeAction.TERMINATE]:
+
+            tasks = []
+            for stage_id in group:
+                stage = next((s for s in context.stages if s.id == stage_id), None)
+                if not stage:
+                    raise ValueError(f"Stage not found: {stage_id}")
+                context.current_stage = stage_id
+                tasks.append(asyncio.create_task(self._execute_stage_with_retry(context, stage)))
+
+            results = await asyncio.gather(*tasks)
+
+            for stage_id, success in zip(group, results):
+                if not success:
+                    stage = next((s for s in context.stages if s.id == stage_id), None)
+                    action, explanation = ai_safety_engine.select_safe_action(
+                        context={
+                            "error": context.results.get(stage_id, {}).get("error"),
+                            "risk_level": "medium"
+                        },
+                        is_stage_critical=stage.is_critical if stage else True,
+                        retry_count=settings.EXECUTOR_MAX_RETRIES,
+                        max_retries=settings.EXECUTOR_MAX_RETRIES
+                    )
+
+                    if action == SafeAction.SKIP_STAGE:
+                        with get_db() as db:
+                            LogCRUD.create(
+                                db, execution_id, "warning",
+                                f"Skipping non-critical stage {stage_id}: {explanation}",
+                                stage_id=stage_id
+                            )
+                        continue
+                    if action == SafeAction.ROLLBACK:
+                        await self._perform_rollback(context)
+                        return {
+                            "success": False,
+                            "execution_id": execution_id,
+                            "status": "rolled_back",
+                            "completed_stages": context.completed_stages,
+                            "error": f"Rolled back after stage {stage_id} failure"
+                        }
+
                     error_msg = f"Stage {stage_id} failed: {explanation}"
                     await self._mark_execution_failed(execution_id, error_msg)
                     return {
@@ -374,19 +376,17 @@ class PipelineExecutor:
                         "completed_stages": context.completed_stages,
                         "error": error_msg
                     }
-            
-            context.completed_stages += 1
-            
-            # Update state
+
+                context.completed_stages += 1
+
             await redis_state_manager.set_execution_state(
                 execution_id,
                 ExecutionState.RUNNING,
                 {"completed_stages": context.completed_stages}
             )
-        
-        # Mark completed
+
         await self._mark_execution_completed(context)
-        
+
         return {
             "success": True,
             "execution_id": execution_id,
@@ -394,7 +394,7 @@ class PipelineExecutor:
             "completed_stages": context.completed_stages,
             "results": context.results
         }
-    
+
     async def _execute_stage_with_retry(
         self,
         context: ExecutionContext,
@@ -477,6 +477,14 @@ class PipelineExecutor:
                         pipeline_id=context.pipeline_id,
                         execution_id=execution_id
                     )
+
+                self._sla_monitor.evaluate_stage(
+                    execution_id=execution_id,
+                    pipeline_id=context.pipeline_id,
+                    stage_id=stage_id,
+                    duration_seconds=duration,
+                    threshold_seconds=stage.config.get("sla_threshold_seconds"),
+                )
                 
                 await redis_state_manager.set_stage_state(
                     execution_id, stage_id, "completed", output=result
@@ -646,6 +654,31 @@ class PipelineExecutor:
         
         return order
     
+    def _stage_to_dict(self, stage: StageConfig) -> Dict[str, Any]:
+        return {
+            "id": stage.id,
+            "name": stage.name,
+            "type": stage.stage_type,
+            "config": stage.config,
+            "dependencies": stage.dependencies,
+            "timeout": stage.timeout,
+            "max_retries": stage.max_retries,
+            "retry_delay": stage.retry_delay,
+            "is_critical": stage.is_critical,
+        }
+
+    def _handle_sla_alert(self, alert: Dict[str, Any]) -> None:
+        execution_id = alert["execution_id"]
+        with get_db() as db:
+            LogCRUD.create(
+                db,
+                execution_id,
+                "warning",
+                f"SLA violation for stage {alert['stage_id']}: {alert['duration_seconds']:.2f}s > {alert['threshold_seconds']}s",
+                stage_id=alert["stage_id"],
+                metadata=alert,
+            )
+
     # ==================
     # AI Integration
     # ==================
