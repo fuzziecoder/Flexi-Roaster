@@ -1,19 +1,23 @@
 """
 AI Insights API Routes
 """
-from typing import List
+from typing import List, Dict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from backend.api.schemas import MessageResponse
+from backend.api.schemas import SuccessResponse
 from backend.db.database import get_db
 from backend.db import crud
 from backend.db.models import ExecutionDB
 from backend.ai.predictor import predictor, PipelineStats
+from backend.ai.forecasting import PipelineForecaster
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+
+# Initialize the forecaster
+forecaster = PipelineForecaster()
 
 
 class AIInsight(BaseModel):
@@ -32,6 +36,27 @@ class AIInsightsResponse(BaseModel):
     """AI Insights response"""
     insights: List[AIInsight]
     total_count: int
+    generated_at: datetime
+
+
+class ForecastPrediction(BaseModel):
+    date: str
+    failure_probability: float
+    confidence_interval: Dict[str, float]
+
+
+class AnomalyAlert(BaseModel):
+    timestamp: datetime
+    duration: float
+    z_score: float
+    is_unusually_high: bool
+
+
+class ForecastResponse(BaseModel):
+    pipeline_id: str
+    forecast_days: int
+    predictions: List[ForecastPrediction]
+    anomalies: List[AnomalyAlert]
     generated_at: datetime
 
 
@@ -149,3 +174,64 @@ async def get_pipeline_insights(pipeline_id: str, db: Session = Depends(get_db))
         total_count=len(insights),
         generated_at=datetime.utcnow()
     )
+
+
+@router.get("/forecast/{pipeline_id}", response_model=ForecastResponse)
+async def get_pipeline_forecast(
+    pipeline_id: str, 
+    periods: int = 7, 
+    db: Session = Depends(get_db)
+):
+    """
+    Get machine-learning time-series failure forecasts and duration anomalies
+    for a specific pipeline.
+    """
+    # 1. Verify pipeline exists
+    pipeline = crud.get_pipeline(db, pipeline_id)
+    if not pipeline:
+        return ForecastResponse(
+            pipeline_id=pipeline_id,
+            forecast_days=periods,
+            predictions=[],
+            anomalies=[],
+            generated_at=datetime.utcnow()
+        )
+        
+    # 2. Get historical executions for data preparation
+    # We order by started_at so it is proper time-series data
+    history = db.query(ExecutionDB).filter(
+        ExecutionDB.pipeline_id == pipeline_id,
+        ExecutionDB.status != 'pending',  # Only completed/failed runs count toward anomalies/training
+        ExecutionDB.started_at.isnot(None)
+    ).order_by(ExecutionDB.started_at.asc()).all()
+    
+    if not history:
+        return ForecastResponse(
+            pipeline_id=pipeline_id,
+            forecast_days=periods,
+            predictions=[],
+            anomalies=[],
+            generated_at=datetime.utcnow()
+        )
+        
+    # Step 3/4 integration: Train the model
+    # (In a real massive app, training happens in a background worker, but for our API we do it on demand)
+    model = forecaster.train(history, pipeline_id)
+    
+    # Run the prediction map for the next X days
+    predictions = forecaster.forecast(model, periods=periods)
+    
+    # Step 5 integration: Anomaly Detection
+    # Get the raw prepared DataFrame
+    df = forecaster.prepare_data(history, pipeline_id)
+    # Scan it for standard deviation duration anomalies
+    anomalies = forecaster.detect_anomalies(df)
+    
+    return ForecastResponse(
+        pipeline_id=pipeline_id,
+        forecast_days=periods,
+        predictions=predictions,
+        anomalies=anomalies,
+        generated_at=datetime.utcnow()
+    )
+

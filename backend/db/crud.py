@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 from backend.db.models import PipelineDB, ExecutionDB, StageExecutionDB, LogDB, MetricDB
-from backend.models.pipeline import PipelineDefinition, PipelineExecution, StageExecution
+from backend.api.schemas import PipelineCreate, ExecutionCreate, StageCreate
 
 
 # Pipeline CRUD
-def create_pipeline(db: Session, pipeline: PipelineDefinition) -> PipelineDB:
+def create_pipeline(db: Session, pipeline: PipelineCreate) -> PipelineDB:
     """Create a new pipeline in database"""
     db_pipeline = PipelineDB(
         id=pipeline.id,
@@ -38,7 +38,7 @@ def get_pipelines(db: Session, skip: int = 0, limit: int = 100) -> List[Pipeline
     return db.query(PipelineDB).offset(skip).limit(limit).all()
 
 
-def update_pipeline(db: Session, pipeline_id: str, pipeline: PipelineDefinition) -> Optional[PipelineDB]:
+def update_pipeline(db: Session, pipeline_id: str, pipeline: PipelineCreate) -> Optional[PipelineDB]:
     """Update a pipeline"""
     db_pipeline = get_pipeline(db, pipeline_id)
     if db_pipeline:
@@ -66,7 +66,7 @@ def delete_pipeline(db: Session, pipeline_id: str) -> bool:
 
 
 # Execution CRUD
-def create_execution(db: Session, execution: PipelineExecution) -> ExecutionDB:
+def create_execution(db: Session, execution: ExecutionCreate) -> ExecutionDB:
     """Create a new execution in database"""
     db_execution = ExecutionDB(
         id=execution.id,
@@ -95,7 +95,7 @@ def get_executions(db: Session, skip: int = 0, limit: int = 50) -> List[Executio
     return db.query(ExecutionDB).order_by(ExecutionDB.started_at.desc()).offset(skip).limit(limit).all()
 
 
-def update_execution(db: Session, execution: PipelineExecution) -> Optional[ExecutionDB]:
+def update_execution(db: Session, execution: ExecutionCreate) -> Optional[ExecutionDB]:
     """Update an execution"""
     db_execution = get_execution(db, execution.id)
     if db_execution:
@@ -110,7 +110,7 @@ def update_execution(db: Session, execution: PipelineExecution) -> Optional[Exec
 
 
 # Stage Execution CRUD
-def create_stage_execution(db: Session, execution_id: str, stage_exec: StageExecution) -> StageExecutionDB:
+def create_stage_execution(db: Session, execution_id: str, stage_exec: StageCreate) -> StageExecutionDB:
     """Create a stage execution"""
     db_stage = StageExecutionDB(
         execution_id=execution_id,
