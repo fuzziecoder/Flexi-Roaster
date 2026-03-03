@@ -111,18 +111,23 @@ async def list_pipelines(skip: int = 0, limit: int = 100):
     summary="Get pipeline details"
 )
 async def get_pipeline(pipeline_id: str):
-    """
-    Get details of a specific pipeline.
+    cache_key = f"pipeline:{pipeline_id}"
+
+    # check cache
+    cached = await cache_service.get(cache_key)
+    if cached:
+        return cached
     
-    - **pipeline_id**: Unique pipeline identifier
-    """
     if pipeline_id not in pipelines_db:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pipeline not found: {pipeline_id}"
         )
     
-    return pipelines_db[pipeline_id]
+    pipeline = pipelines_db[pipeline_id]
+
+    await cache_service.set(cache_key, pipeline.model_dump())
+    return pipeline
 
 
 @router.put(
@@ -178,6 +183,9 @@ async def update_pipeline(pipeline_id: str, pipeline_data: PipelineUpdate):
     
     pipelines_db[pipeline_id] = pipeline
     
+    #invalidate cache
+    await cache_service.delete(f"pipeline:{pipeline_id}")
+    
     return pipeline
 
 
@@ -199,6 +207,9 @@ async def delete_pipeline(pipeline_id: str):
         )
     
     del pipelines_db[pipeline_id]
+    
+    # Invalidate cache
+    await cache_service.delete(f"pipeline:{pipeline_id}")
     
     return SuccessResponse(
         message=f"Pipeline {pipeline_id} deleted successfully"
