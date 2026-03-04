@@ -4,6 +4,7 @@ Provides system metrics and historical data.
 """
 from fastapi import APIRouter
 from datetime import datetime, timedelta
+from backend.services.cache import cache_service
 from typing import List
 import random
 
@@ -162,3 +163,15 @@ async def get_metrics_history(
         start_time=start_time,
         end_time=end_time
     )
+@router.get(
+    "/cache",
+    summary = "Get cache performance metrics"
+)
+async def cache_metrics():
+    """
+    Get Redis cache statistics:
+    - hits
+    - misses
+    - hit ratio
+    """
+    return cache_service.metrics()

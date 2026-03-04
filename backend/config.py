@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./flexiroaster.db"
     
+    # Redis/ Cache
+    REDIS_URL: str ="redis://localhost:6379"
+    CACHE_TTL_SECONDS: int = 300
+    CACHE_ENABLED: bool = True
+    
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000

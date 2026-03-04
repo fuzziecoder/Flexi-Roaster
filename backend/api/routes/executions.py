@@ -4,6 +4,8 @@ Handles pipeline execution and execution monitoring.
 """
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks
 from typing import Any, Dict, List, Optional
+from backend.services.cache import cache_service
+
 import uuid
 
 from backend.api.schemas import (
@@ -73,23 +75,22 @@ def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = N
     return execution
 
 
-def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = None) -> Execution:
-def initialize_execution(pipeline_id: str, context: Dict = None) -> Execution:
-    """Create and store a pending execution record."""
-    from datetime import datetime
+# def initialize_execution(pipeline_id: str, context: Optional[Dict[str, Any]] = None) -> Execution:
+#     """Create and store a pending execution record."""
+#     from datetime import datetime
 
-    execution_id = f"exec-{uuid.uuid4()}"
-    pipeline = pipelines_db[pipeline_id]
-    execution = Execution(
-        id=execution_id,
-        pipeline_id=pipeline_id,
-        status=ExecutionStatus.PENDING,
-        started_at=datetime.now(),
-        total_stages=len(pipeline.stages),
-        context=context or {}
-    )
-    executions_db[execution_id] = execution
-    return execution
+#     execution_id = f"exec-{uuid.uuid4()}"
+#     pipeline = pipelines_db[pipeline_id]
+#     execution = Execution(
+#         id=execution_id,
+#         pipeline_id=pipeline_id,
+#         status=ExecutionStatus.PENDING,
+#         started_at=datetime.now(),
+#         total_stages=len(pipeline.stages),
+#         context=context or {}
+#     )
+#     executions_db[execution_id] = execution
+#     return execution
 
 
 async def execute_pipeline_background(pipeline_id: str, execution_id: str):
@@ -121,6 +122,8 @@ async def execute_pipeline_background(pipeline_id: str, execution_id: str):
 
         result.id = execution_id  # Use the pre-assigned ID
         executions_db[execution_id] = result
+
+        await cache_service.delete(f"execution:{execution_id}")
     except Exception as e:
         if execution_id in executions_db:
             executions_db[execution_id].status = ExecutionStatus.FAILED
@@ -208,18 +211,25 @@ async def list_executions(
     summary="Get execution details"
 )
 async def get_execution(execution_id: str):
-    """
-    Get details of a specific execution including logs.
+    cache_key = f"execution:{execution_id}"
+
+    cached = await cache_service.get(cache_key)
+    if cached:
+        return cached
     
-    - **execution_id**: Unique execution identifier
-    """
     if execution_id not in executions_db:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Execution not found: {execution_id}"
         )
     
-    return executions_db[execution_id]
+    execution = executions_db[execution_id]
+
+    # cache it (TTL from settings)
+    await cache_service.set(cache_key, execution.model_dump())
+
+    return execution
+
 
 
 @router.get(
@@ -271,6 +281,8 @@ async def cancel_execution(execution_id: str):
     execution.status = ExecutionStatus.CANCELLED
     from datetime import datetime
     execution.completed_at = datetime.now()
+
+    await cache_service.delete(f"execution:{execution_id}")
     
     return SuccessResponse(
         message=f"Execution {execution_id} cancelled successfully"
