@@ -4,7 +4,8 @@ Main entry point for the REST API server.
 """
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from datetime import datetime
 import uvicorn
 
@@ -69,6 +70,13 @@ async def health_check():
         "version": settings.APP_VERSION,
         "timestamp": datetime.now().isoformat()
     }
+
+
+# Prometheus Metrics scraping endpoint
+@app.get("/metrics", tags=["monitoring"])
+async def prometheus_metrics():
+    """Prometheus metrics endpoint"""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # Root endpoint
