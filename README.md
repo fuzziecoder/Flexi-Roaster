@@ -5,7 +5,6 @@
 [![React](https://img.shields.io/badge/react-19+-61dafb.svg)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](https://fastapi.tiangolo.com/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Apertre'26](https://img.shields.io/badge/Apertre'26-Participating-orange.svg)](https://apertre.org)
 
 > Full-stack pipeline orchestration platform with a React dashboard, FastAPI backend, execution engine, and AI insights.
 
