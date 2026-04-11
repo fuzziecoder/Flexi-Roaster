@@ -13,7 +13,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Current Architecture](#current-architecture)
+- [Current Architecture](#current-architecture) 
 - [Technology Stack](#technology-stack)
 - [Repository Layout](#repository-layout)
 - [End-to-End Workflows](#end-to-end-workflows)
