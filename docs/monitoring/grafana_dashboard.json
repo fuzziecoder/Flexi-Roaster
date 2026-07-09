@@ -1,0 +1,149 @@
+{
+    "annotations": {
+        "list": []
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 8,
+                "w": 6,
+                "x": 0,
+                "y": 0
+            },
+            "id": 1,
+            "panels": [],
+            "title": "Pipeline Success Rate (%)",
+            "type": "stat",
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(rate(pipeline_executions_total{status=\"success\"}[5m])) / sum(rate(pipeline_executions_total[5m])) * 100",
+                    "refId": "A"
+                }
+            ],
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            }
+        },
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 8,
+                "w": 6,
+                "x": 6,
+                "y": 0
+            },
+            "id": 2,
+            "panels": [],
+            "title": "Active Pipeline Executions",
+            "type": "gauge",
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(pipeline_active_executions)",
+                    "refId": "A"
+                }
+            ],
+            "options": {
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showThresholdLabels": false,
+                "showThresholdMarkers": true,
+                "text": {}
+            }
+        },
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "id": 3,
+            "panels": [],
+            "title": "Pipeline Execution Duration (95th Percentile)",
+            "type": "timeseries",
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(pipeline_execution_duration_seconds_bucket[5m])) by (le, pipeline_id))",
+                    "legendFormat": "{{pipeline_id}} (95% CI)",
+                    "refId": "A"
+                }
+            ],
+            "options": {
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            }
+        },
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 8
+            },
+            "id": 4,
+            "panels": [],
+            "title": "Global Pipeline Throughput (Executions per Minute)",
+            "type": "timeseries",
+            "datasource": "Prometheus",
+            "targets": [
+                {
+                    "expr": "sum(rate(pipeline_executions_total[1m])) * 60",
+                    "legendFormat": "Executions / Min",
+                    "refId": "A"
+                }
+            ],
+            "options": {
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            }
+        }
+    ],
+    "refresh": "5s",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [
+        "flexiroaster",
+        "pipelines"
+    ],
+    "templating": {
+        "list": []
+    },
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "FlexiRoaster Pipeline Monitoring"
+}

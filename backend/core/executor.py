@@ -4,10 +4,18 @@ Handles the actual execution of pipeline stages with data passing and error hand
 """
 import traceback
 from datetime import datetime
+import time
 from typing import Dict, Any, Optional
 
 from backend.models.pipeline import Pipeline, Stage, Execution, ExecutionStatus, LogLevel, StageType
 from backend.core.pipeline_engine import PipelineEngine
+from backend.monitoring.metrics import (
+    pipeline_executions_total,
+    pipeline_failures_total,
+    pipeline_execution_duration_seconds,
+    stage_execution_duration_seconds,
+    pipeline_active_executions
+)
 
 
 class PipelineExecutor:
@@ -36,6 +44,10 @@ class PipelineExecutor:
         execution.status = ExecutionStatus.RUNNING
         execution.add_log(None, LogLevel.INFO, f"Starting pipeline execution: {pipeline.name}")
         
+        # Track active pipeline start
+        pipeline_active_executions.labels(pipeline_id=pipeline.id).inc()
+        start_time = time.time()
+        
         try:
             # Get execution order (topological sort)
             execution_order = self.engine.get_execution_order(pipeline)
@@ -60,6 +72,12 @@ class PipelineExecutor:
                 f"Pipeline completed successfully in {execution.duration:.2f}s"
             )
             
+            # Record success metrics
+            duration = time.time() - start_time
+            pipeline_executions_total.labels(pipeline_id=pipeline.id, status='success').inc()
+            pipeline_execution_duration_seconds.labels(pipeline_id=pipeline.id).observe(duration)
+            pipeline_active_executions.labels(pipeline_id=pipeline.id).dec()
+            
         except Exception as e:
             # Handle execution failure
             execution.status = ExecutionStatus.FAILED
@@ -71,6 +89,13 @@ class PipelineExecutor:
                 f"Pipeline execution failed: {str(e)}",
                 metadata={"traceback": traceback.format_exc()}
             )
+            
+            # Record failure metrics
+            duration = time.time() - start_time
+            pipeline_executions_total.labels(pipeline_id=pipeline.id, status='failed').inc()
+            pipeline_failures_total.labels(pipeline_id=pipeline.id).inc()
+            pipeline_execution_duration_seconds.labels(pipeline_id=pipeline.id).observe(duration)
+            pipeline_active_executions.labels(pipeline_id=pipeline.id).dec()
         
         return execution
     
@@ -83,6 +108,7 @@ class PipelineExecutor:
             execution: Current execution context
         """
         execution.add_log(stage.id, LogLevel.INFO, f"Starting stage: {stage.name}")
+        stage_start_time = time.time()
         
         try:
             # Execute based on stage type
@@ -107,6 +133,14 @@ class PipelineExecutor:
                 metadata={"result_keys": list(result.keys()) if isinstance(result, dict) else None}
             )
             
+            # Record stage success metrics
+            stage_duration = time.time() - stage_start_time
+            stage_execution_duration_seconds.labels(
+                pipeline_id=execution.pipeline_id,
+                stage_name=stage.name,
+                status='success'
+            ).observe(stage_duration)
+            
         except Exception as e:
             execution.add_log(
                 stage.id,
@@ -114,6 +148,14 @@ class PipelineExecutor:
                 f"Stage failed: {str(e)}",
                 metadata={"traceback": traceback.format_exc()}
             )
+            
+            # Record stage failure metrics
+            stage_duration = time.time() - stage_start_time
+            stage_execution_duration_seconds.labels(
+                pipeline_id=execution.pipeline_id,
+                stage_name=stage.name,
+                status='failed'
+            ).observe(stage_duration)
             raise
     
     def _execute_input_stage(self, stage: Stage, execution: Execution) -> Dict[str, Any]:
