@@ -5,9 +5,10 @@ Provides system metrics and historical data.
 from fastapi import APIRouter
 from datetime import datetime, timedelta
 from typing import List
-import random
+import os
 
 from backend.api.schemas import SystemMetricsResponse, MetricResponse, MetricsHistoryResponse
+from backend.observability import observability_metrics
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -67,9 +68,23 @@ async def get_metrics():
     ]
     pipeline_throughput = len(recent_executions)
     
-    # Simulated CPU and memory (would be real in production)
-    cpu_usage = random.uniform(20, 80)
-    memory_usage = random.uniform(30, 70)
+    # Resource usage snapshots
+    observability_metrics.observe_process_resources()
+
+    try:
+        load1, _, _ = os.getloadavg()
+        cpu_usage = max(min(load1 * 100, 100.0), 0.0)
+    except Exception:
+        cpu_usage = 0.0
+
+    try:
+        import resource
+
+        rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        rss_mb = rss_kb / 1024 if rss_kb < 10_000_000 else rss_kb / (1024 * 1024)
+        memory_usage = max(min((rss_mb / 1024) * 100, 100.0), 0.0)
+    except Exception:
+        memory_usage = 0.0
     
     return SystemMetricsResponse(
         cpu_usage=cpu_usage,
@@ -137,16 +152,16 @@ async def get_metrics_history(
         
         # Generate sample values based on metric type
         if metric == "throughput":
-            value = random.uniform(800, 2200)
+            value = 800 + (i * 120) % 1400
             unit = "req/min"
         elif metric == "cpu":
-            value = random.uniform(20, 80)
+            value = 20 + (i * 7) % 60
             unit = "%"
         elif metric == "memory":
-            value = random.uniform(30, 70)
+            value = 30 + (i * 5) % 40
             unit = "%"
         else:
-            value = random.uniform(0, 100)
+            value = (i * 11) % 100
             unit = None
         
         metrics.append(MetricResponse(

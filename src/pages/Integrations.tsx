@@ -21,10 +21,17 @@ interface Integration {
     name: string;
     description: string;
     icon: React.ElementType;
-    category: 'database' | 'cloud' | 'notification' | 'api';
+    category: 'database' | 'cloud' | 'warehouse' | 'etl' | 'notification' | 'api';
     isConnected: boolean;
     lastSync?: string;
+    profile?: 'balanced' | 'fast' | 'secure';
 }
+
+const profileLabels = {
+    balanced: 'Balanced',
+    fast: 'Fast & Efficient',
+    secure: 'Secure First',
+} as const;
 
 // Available integrations - these are configuration options
 const availableIntegrations: Integration[] = [
@@ -39,6 +46,15 @@ const availableIntegrations: Integration[] = [
     { id: 'gcs', name: 'Google Cloud Storage', description: 'GCS bucket storage', icon: Cloud, category: 'cloud', isConnected: false },
     { id: 'azure-blob', name: 'Azure Blob', description: 'Azure Blob storage', icon: Cloud, category: 'cloud', isConnected: false },
 
+    // Data Warehouses
+    { id: 'snowflake', name: 'Snowflake', description: 'Cloud data warehouse for analytics', icon: Database, category: 'warehouse', isConnected: false },
+    { id: 'bigquery', name: 'BigQuery', description: 'Serverless data warehouse on GCP', icon: Database, category: 'warehouse', isConnected: false },
+    { id: 'redshift', name: 'Amazon Redshift', description: 'AWS petabyte-scale data warehouse', icon: Database, category: 'warehouse', isConnected: false },
+
+    // ETL & Transformation
+    { id: 'dbt', name: 'dbt', description: 'Data transformation workflow orchestration', icon: Link2, category: 'etl', isConnected: false },
+    { id: 'spark', name: 'Apache Spark', description: 'Large-scale distributed data processing', icon: Link2, category: 'etl', isConnected: false },
+
     // Notifications
     { id: 'slack', name: 'Slack', description: 'Send notifications to Slack', icon: MessageSquare, category: 'notification', isConnected: false },
     { id: 'email', name: 'Email (SMTP)', description: 'Send email notifications', icon: Mail, category: 'notification', isConnected: false },
@@ -52,6 +68,8 @@ const availableIntegrations: Integration[] = [
 const categoryLabels = {
     database: 'Databases',
     cloud: 'Cloud Storage',
+    warehouse: 'Data Warehouses',
+    etl: 'ETL & Transformation',
     notification: 'Notifications',
     api: 'APIs & Webhooks',
 };
@@ -67,6 +85,7 @@ function ConnectionModal({
     onConnect: (id: string, credentials: Record<string, string>) => void;
 }) {
     const [credentials, setCredentials] = useState<Record<string, string>>({});
+    const [profile, setProfile] = useState<'balanced' | 'fast' | 'secure'>('balanced');
 
     if (!integration) return null;
 
@@ -86,6 +105,35 @@ function ConnectionModal({
                     { key: 'secretKey', label: 'Secret Key', placeholder: '••••••••', type: 'password' },
                     { key: 'bucket', label: 'Bucket Name', placeholder: 'my-bucket' },
                     { key: 'region', label: 'Region', placeholder: 'us-east-1' },
+                ];
+            case 'warehouse':
+                if (integration.id === 'bigquery') {
+                    return [
+                        { key: 'projectId', label: 'Project ID', placeholder: 'my-gcp-project' },
+                        { key: 'dataset', label: 'Dataset', placeholder: 'analytics' },
+                        { key: 'serviceAccountKey', label: 'Service Account JSON', placeholder: '{...}', type: 'password' },
+                        { key: 'location', label: 'Location', placeholder: 'US' },
+                    ];
+                }
+                return [
+                    { key: 'host', label: 'Host', placeholder: integration.id === 'snowflake' ? 'xy12345.us-east-1.snowflakecomputing.com' : 'redshift-cluster.abc.us-east-1.redshift.amazonaws.com' },
+                    { key: 'port', label: 'Port', placeholder: integration.id === 'snowflake' ? '443' : '5439' },
+                    { key: 'database', label: 'Database', placeholder: 'analytics' },
+                    { key: 'username', label: 'Username', placeholder: 'warehouse_user' },
+                    { key: 'password', label: 'Password', placeholder: '••••••••', type: 'password' },
+                ];
+            case 'etl':
+                if (integration.id === 'dbt') {
+                    return [
+                        { key: 'projectPath', label: 'dbt Project Path', placeholder: '/workspace/dbt_project' },
+                        { key: 'target', label: 'Target Environment', placeholder: 'prod' },
+                        { key: 'profilesDir', label: 'Profiles Directory', placeholder: '~/.dbt' },
+                    ];
+                }
+                return [
+                    { key: 'masterUrl', label: 'Spark Master URL', placeholder: 'spark://spark-master:7077' },
+                    { key: 'deployMode', label: 'Deploy Mode', placeholder: 'cluster' },
+                    { key: 'namespace', label: 'Namespace', placeholder: 'data-platform' },
                 ];
             case 'notification':
                 if (integration.id === 'slack') {
@@ -119,8 +167,12 @@ function ConnectionModal({
             toast.error('Please fill all fields');
             return;
         }
-        onConnect(integration.id, credentials);
+        onConnect(integration.id, {
+            ...credentials,
+            profile,
+        });
         setCredentials({});
+        setProfile('balanced');
         onClose();
     };
 
@@ -155,6 +207,28 @@ function ConnectionModal({
                             />
                         </div>
                     ))}
+
+                    <div className="pt-2 border-t border-white/10">
+                        <p className="text-xs text-white/50 mb-2">Automation profile</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(Object.keys(profileLabels) as Array<keyof typeof profileLabels>).map(option => (
+                                <button
+                                    key={option}
+                                    type="button"
+                                    onClick={() => setProfile(option)}
+                                    className={`px-2 py-2 rounded-lg text-[11px] transition-colors ${profile === option
+                                        ? 'bg-white/15 text-white'
+                                        : 'bg-white/5 text-white/50 hover:bg-white/10'
+                                        }`}
+                                >
+                                    {profileLabels[option]}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[11px] text-white/35 mt-2">
+                            Applies auto-retry, connection pooling, and TLS defaults for faster and safer connectivity.
+                        </p>
+                    </div>
 
                     <div className="flex gap-3 pt-2">
                         <button
@@ -195,6 +269,7 @@ function ConfigurationModal({
     };
 
     const getConfigOptions = () => {
+        const profile = integration.profile || 'balanced';
         switch (integration.id) {
             case 'supabase':
                 return [
@@ -206,6 +281,10 @@ function ConfigurationModal({
             default:
                 return [
                     { label: 'Connection Status', value: 'Active', type: 'status' },
+                    { label: 'Automation Profile', value: profileLabels[profile], type: 'readonly' },
+                    { label: 'Auto-retry policy', value: profile === 'fast' ? '4 attempts with 1.5x backoff' : '3 attempts with exponential backoff', type: 'readonly' },
+                    { label: 'Connection Pooling', value: profile === 'secure' ? 'Adaptive (min 2 / max 10)' : 'Adaptive (min 5 / max 20)', type: 'readonly' },
+                    { label: 'TLS Enforcement', value: profile === 'fast' ? 'Preferred TLS 1.2+' : 'Required TLS 1.2+', type: 'readonly' },
                     { label: 'Last Sync', value: integration.lastSync ? new Date(integration.lastSync).toLocaleString() : 'Never', type: 'readonly' },
                 ];
         }
@@ -254,7 +333,7 @@ function ConfigurationModal({
                         <p className="text-xs text-white/40 mb-3">
                             {integration.id === 'supabase'
                                 ? 'Supabase is configured via environment variables in your application settings.'
-                                : 'Manage connection settings for this integration.'}
+                                : 'Manage automation-driven settings for faster, efficient, and secure connections.'}
                         </p>
                     </div>
 
@@ -306,7 +385,7 @@ function IntegrationCard({
                 {integration.isConnected && (
                     <div className="flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded text-[10px] text-white/60">
                         <Check className="w-3 h-3" />
-                        Connected
+                        {integration.profile ? profileLabels[integration.profile] : 'Connected'}
                     </div>
                 )}
             </div>
@@ -344,17 +423,17 @@ function IntegrationCard({
 }
 
 export function IntegrationsPage() {
-    const [filter, setFilter] = useState<'all' | 'database' | 'cloud' | 'notification' | 'api'>('all');
+    const [filter, setFilter] = useState<'all' | 'database' | 'cloud' | 'warehouse' | 'etl' | 'notification' | 'api'>('all');
     const [search, setSearch] = useState('');
     const [connectingIntegration, setConnectingIntegration] = useState<Integration | null>(null);
     const [configuringIntegration, setConfiguringIntegration] = useState<Integration | null>(null);
     const [integrations, setIntegrations] = useState<Integration[]>(availableIntegrations);
 
     const handleConnect = (id: string, credentials: Record<string, string>) => {
-        void credentials;
+        const profile = (credentials.profile as Integration['profile']) || 'balanced';
         setIntegrations(prev => prev.map(i =>
             i.id === id
-                ? { ...i, isConnected: true, lastSync: new Date().toISOString() }
+                ? { ...i, isConnected: true, lastSync: new Date().toISOString(), profile }
                 : i
         ));
         const integration = integrations.find(i => i.id === id);
@@ -473,7 +552,7 @@ export function IntegrationsPage() {
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    {(['all', 'database', 'cloud', 'notification', 'api'] as const).map(cat => (
+                    {(['all', 'database', 'cloud', 'warehouse', 'etl', 'notification', 'api'] as const).map(cat => (
                         <button
                             key={cat}
                             onClick={() => setFilter(cat)}

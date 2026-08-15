@@ -14,6 +14,17 @@ pip install -r backend/requirements.txt
 
 ## Running the Backend
 
+### Core API Layer
+
+- **FastAPI** - High-performance Python API framework
+- **Uvicorn** - ASGI server for FastAPI
+- **Gunicorn** - Production process manager
+- **NGINX** - Reverse proxy, load balancing, and rate limiting
+
+### Optional Alternative
+
+- **Django** - Use when a full admin experience and enterprise-grade auth system are required
+
 ### Option 1: CLI Testing (Phase 1)
 
 Test pipeline execution from command line:
@@ -91,6 +102,84 @@ curl -X POST http://localhost:8000/api/executions \
   -d '{"pipeline_id": "your-pipeline-id"}'
 ```
 
+
+### Distributed Task Execution (Celery / Ray / Spark / Dask)
+
+FlexiRoaster supports selectable execution backends for asynchronous and distributed workloads:
+
+- `local`: default in-process execution
+- `celery`: async jobs, retries, and scheduling support through Celery workers
+- `ray`: distributed Python execution, optimized for ML/AI-heavy pipelines
+- `spark`: Apache Spark-based distributed compute for ETL + ML-heavy batch workloads
+- `dask`: Python-native distributed parallelism from laptop to cluster
+
+Use the optional `execution_backend` field when creating an execution:
+
+```bash
+curl -X POST http://localhost:8000/api/executions   -H "Content-Type: application/json"   -d '{"pipeline_id": "your-pipeline-id", "execution_backend": "spark"}'
+```
+
+Or set a default backend via environment variables in `backend/.env`:
+
+```env
+DISTRIBUTED_EXECUTION_BACKEND=local
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+CELERY_EXECUTION_TASK=flexiroaster.execute_pipeline
+RAY_ADDRESS=auto
+RAY_NAMESPACE=flexiroaster
+SPARK_MASTER_URL=local[*]
+SPARK_APP_NAME=flexiroaster
+DASK_SCHEDULER_ADDRESS=
+```
+
+If Celery, Ray, Spark, or Dask is unavailable, FlexiRoaster automatically falls back to local execution and records the fallback reason in execution context.
+
+
+## Database Alternatives
+
+FlexiRoaster can run with multiple persistence backends depending on deployment requirements:
+
+- `postgresql`: traditional relational baseline for transactional workloads
+- `cockroachdb`: globally distributed SQL with strong consistency and high availability
+- `mongodb`: flexible-schema document store for dynamic pipeline metadata
+- `cassandra`: highly scalable wide-column store optimized for high-write throughput
+
+Configure backend selection via environment variables:
+
+```env
+DATABASE_BACKEND=postgresql
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/flexiroaster
+MONGODB_URL=mongodb://localhost:27017/flexiroaster
+CASSANDRA_CONTACT_POINTS=localhost
+CASSANDRA_KEYSPACE=flexiroaster
+```
+
+For CockroachDB, use a PostgreSQL-compatible `DATABASE_URL` with `DATABASE_BACKEND=cockroachdb`.
+
+## Authentication & Security
+
+- JWT authentication endpoint: `POST /api/auth/token`
+- RBAC roles: `admin`, `operator`, `viewer`
+- Rate limiting: IP-based sliding window using `RATE_LIMIT_PER_MINUTE`
+- Secret management abstraction via `SECRET_BACKEND` (`env` or `vault`)
+- Optional enterprise IAM metadata endpoint for Keycloak: `GET /api/auth/oidc/keycloak/config`
+
+Example token request:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+```
+
+Use token:
+
+```bash
+curl http://localhost:8000/api/pipelines \
+  -H "Authorization: Bearer <access_token>"
+```
+
 ## Configuration
 
 Copy `.env.example` to `.env` and customize:
@@ -98,6 +187,74 @@ Copy `.env.example` to `.env` and customize:
 ```bash
 cp backend/.env.example backend/.env
 ```
+
+## Event-Driven Architecture (Advanced Setup)
+
+FlexiRoaster supports Kafka-compatible domain events (Apache Kafka or Redpanda) for loose coupling, high scalability, audit-friendly workflows, and real-time analytics.
+
+
+#### Apache Kafka
+- Event-driven triggers
+- High-throughput ingestion
+- Real-time pipeline activation
+
+#### Redpanda
+- Kafka-compatible
+- Lower operational complexity
+
+Use this layer when:
+- Pipelines should trigger from events
+- You need real-time monitoring
+- You process millions of records
+
+### Published topics
+- `pipeline.created`
+- `execution.started`
+- `execution.failed`
+- `execution.completed`
+
+### Enable streaming publishing
+Set the following environment variables in `backend/.env`:
+
+```env
+ENABLE_EVENT_STREAMING=true
+EVENT_STREAM_BACKEND=kafka
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+KAFKA_CLIENT_ID=flexiroaster-backend
+TOPIC_PIPELINE_CREATED=pipeline.created
+TOPIC_EXECUTION_STARTED=execution.started
+TOPIC_EXECUTION_FAILED=execution.failed
+TOPIC_EXECUTION_COMPLETED=execution.completed
+```
+
+If Kafka/Redpanda is unavailable, the backend falls back to structured application logs for events so local development continues to work.
+
+
+## Monitoring & Observability
+
+FlexiRoaster now includes a production observability baseline:
+
+- **Prometheus** metrics scrape endpoint: `GET /metrics`
+- **Grafana** dashboards (using Prometheus datasource)
+- **Elasticsearch + Logstash** centralized JSON logs
+
+Key telemetry includes:
+- Pipeline latency (`flexiroaster_pipeline_execution_latency_seconds`)
+- Failure rates (`flexiroaster_pipeline_failure_rate`)
+- Resource usage (`flexiroaster_process_cpu_percent`, `flexiroaster_process_memory_rss_bytes`)
+- SLA tracking (`flexiroaster_pipeline_sla_breaches_total`)
+
+Runtime knobs (environment variables):
+
+```env
+ENABLE_PROMETHEUS_METRICS=true
+PIPELINE_SLA_TARGET_SECONDS=30
+ENABLE_LOGSTASH_LOGGING=true
+LOGSTASH_HOST=logstash
+LOGSTASH_PORT=5000
+```
+
+Use `docker compose up` to launch backend + monitoring stack (Prometheus/Grafana/Elasticsearch/Logstash).
 
 ## Next Steps
 

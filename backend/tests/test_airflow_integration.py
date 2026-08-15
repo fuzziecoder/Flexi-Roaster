@@ -26,6 +26,7 @@ def _seed_pipeline() -> str:
             Stage(id="s1", name="Input", type=StageType.INPUT, config={"source": "test", "data": [1]}, dependencies=[]),
             Stage(id="s2", name="Output", type=StageType.OUTPUT, config={"destination": "sink"}, dependencies=["s1"]),
         ],
+        user_id="user-admin",
     )
     pipelines_db[pipeline.id] = pipeline
     return pipeline.id

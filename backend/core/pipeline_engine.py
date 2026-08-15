@@ -74,7 +74,8 @@ class PipelineEngine:
             id=data.get('id', str(uuid.uuid4())),
             name=data['name'],
             description=data['description'],
-            stages=stages
+            stages=stages,
+            user_id=data.get('user_id', 'system'),
         )
         
         return pipeline
@@ -157,6 +158,7 @@ class PipelineEngine:
         execution = Execution(
             id=f"exec-{uuid.uuid4()}",
             pipeline_id=pipeline.id,
+            user_id=pipeline.user_id,
             status=ExecutionStatus.PENDING,
             started_at=datetime.now(),
             total_stages=len(pipeline.stages)

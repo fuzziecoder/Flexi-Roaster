@@ -8,23 +8,53 @@ export function useAuth() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
+
+        const loadingTimeout = window.setTimeout(() => {
+            if (isMounted) {
+                setLoading(false);
+            }
+        }, 5000);
+
         // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
+        supabase.auth
+            .getSession()
+            .then(({ data: { session } }) => {
+                if (!isMounted) return;
+
+                setSession(session);
+                setUser(session?.user ?? null);
+            })
+            .catch(() => {
+                if (!isMounted) return;
+
+                setSession(null);
+                setUser(null);
+            })
+            .finally(() => {
+                if (isMounted) {
+                    window.clearTimeout(loadingTimeout);
+                    setLoading(false);
+                }
+            });
 
         // Listen for auth changes
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!isMounted) return;
+
+            window.clearTimeout(loadingTimeout);
             setSession(session);
             setUser(session?.user ?? null);
             setLoading(false);
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            isMounted = false;
+            window.clearTimeout(loadingTimeout);
+            subscription.unsubscribe();
+        };
     }, []);
 
     const signIn = async (email: string, password: string) => {

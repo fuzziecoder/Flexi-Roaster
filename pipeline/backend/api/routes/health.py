@@ -17,6 +17,7 @@ from db import (
 from db.database import check_database_health
 from core.redis_state import redis_state_manager
 from config import settings
+from core.elasticsearch_client import elasticsearch_manager
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ async def health_check(
     - Application
     - Database
     - Redis
+    - Elasticsearch
     """
     services = {}
     overall_status = "healthy"
@@ -63,6 +65,15 @@ async def health_check(
             services["redis"].details["note"] = "Running in fallback mode"
         else:
             overall_status = "degraded"
+
+    # Check Elasticsearch
+    elastic_health = await elasticsearch_manager.health_check()
+    services["elasticsearch"] = ServiceHealth(
+        status=elastic_health.get("status", "unknown"),
+        details=elastic_health
+    )
+    if elastic_health.get("status") not in ["healthy", "disabled"]:
+        overall_status = "degraded"
     
     return HealthResponse(
         status=overall_status,

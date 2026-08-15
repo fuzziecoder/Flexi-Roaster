@@ -64,6 +64,26 @@ services:
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     restart: always
 
+
+  # Elasticsearch for execution log indexing and analytics
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: flexiroaster-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+    restart: always
+
   # FastAPI Backend
   backend:
     build:
@@ -94,12 +114,42 @@ services:
       
       # Logging
       LOG_LEVEL: INFO
+
+      # Elasticsearch
+      ELASTICSEARCH_ENABLED: "true"
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_LOGS_INDEX: flexiroaster-execution-logs
+      # Error Monitoring
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-local}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      SENTRY_PROFILES_SAMPLE_RATE: ${SENTRY_PROFILES_SAMPLE_RATE:-0.1}
+      ORCHESTRATION_ENGINE: temporal
+      TEMPORAL_ENABLED: "true"
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: flexiroaster-orchestration
+      KAFKA_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KUBERNETES_NAMESPACE: flexiroaster
+      KUBERNETES_JOB_IMAGE: python:3.11-slim
+      RAY_ENABLED: "true"
+      RAY_DASHBOARD_URL: http://ray-head:8265
+      OBJECT_STORAGE_ENABLED: "true"
+      OBJECT_STORAGE_BUCKET: pipeline-artifacts
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_ACCESS_KEY: minio
+      OBJECT_STORAGE_SECRET_KEY: minio123
+      JWT_SECRET: change-me-in-production
+      SECRETS_PROVIDER: env
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     volumes:
       - ./backend:/app
@@ -198,9 +248,175 @@ services:
       - -c
       - airflow
 
+  # Prometheus metrics store
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: flexiroaster-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: always
+
+  # Grafana dashboards
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: flexiroaster-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: always
+
+  # ELK Stack - Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.1
+    container_name: flexiroaster-elasticsearch
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+    volumes:
+      - ./monitoring/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    restart: always
+
+  # ELK Stack - Logstash
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.1
+    container_name: flexiroaster-logstash
+    volumes:
+      - ./monitoring/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5000:5000"
+      - "5044:5044"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: always
+
+  # ELK Stack - Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.1
+    container_name: flexiroaster-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: always
+
+
+  # Kafka (Event Layer)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: flexiroaster-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    restart: always
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: flexiroaster-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    restart: always
+
+  # Temporal (Alternative Orchestration)
+  temporal:
+    image: temporalio/auto-setup:1.25.0
+    container_name: flexiroaster-temporal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: airflow
+      POSTGRES_PWD: airflow
+      POSTGRES_SEEDS: postgres
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    ports:
+      - "7233:7233"
+    restart: always
+
+  temporal-ui:
+    image: temporalio/ui:2.29.1
+    container_name: flexiroaster-temporal-ui
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - "8088:8080"
+    depends_on:
+      - temporal
+    restart: always
+
+  # Ray Distributed Compute
+  ray-head:
+    image: rayproject/ray:2.37.0
+    container_name: flexiroaster-ray-head
+    command: ray start --head --dashboard-host=0.0.0.0 --port=6378 --dashboard-port=8265 --block
+    ports:
+      - "8265:8265"
+      - "6378:6378"
+    restart: always
+
+  # Object Storage
+  minio:
+    image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+    container_name: flexiroaster-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: always
+
 volumes:
+  minio-data:
   postgres-data:
   redis-data:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:
 
 networks:
   default:

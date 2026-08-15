@@ -1,3 +1,26 @@
-"""API Routes module initialization"""
-from api.routes import pipelines, executions, health, monitoring, ai_automation
-from api.routes import pipelines, executions, health, monitoring
+"""API route module exports."""
+
+from api.routes import (
+    advanced_stack,
+    ai_automation,
+    executions,
+    health,
+    microservices,
+    model_infra,
+    monitoring,
+    orchestration,
+    pipelines,
+)
+
+__all__ = [
+    "ai_automation",
+    "executions",
+    "health",
+    "microservices",
+    "model_infra",
+    "monitoring",
+    "orchestration",
+    "pipelines",
+]
+    pipelines,
+)

@@ -215,6 +215,8 @@ class TestConfig:
         assert settings.API_PREFIX == "/api"
         assert settings.EXECUTOR_MAX_RETRIES == 3
         assert settings.AI_RISK_THRESHOLD_HIGH == 0.7
+        assert settings.EXECUTION_QUEUE_BACKEND in ["celery", "inline"]
+        assert settings.CELERY_TASK_QUEUE == "pipeline_execution"
 
 
 if __name__ == "__main__":

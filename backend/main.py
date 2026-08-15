@@ -2,14 +2,21 @@
 FlexiRoaster FastAPI Application.
 Main entry point for the REST API server.
 """
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from datetime import datetime
-import uvicorn
 
+import uvicorn
+from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+
+from backend.api.middleware.rate_limit_middleware import RateLimitMiddleware
+from backend.api.routes import airflow, executions, metrics, pipelines
+from backend.api.routes.auth import router as auth_router
+from backend.api.security import require_roles
 from backend.config import settings
-from backend.api.routes import pipelines, executions, metrics, airflow
+from backend.services.secrets import secret_manager
+from backend.observability import observability_metrics
+from backend.observability.logging import configure_logstash_logging
 
 # Create FastAPI app
 app = FastAPI(
@@ -18,7 +25,7 @@ app = FastAPI(
     description="Production-grade pipeline automation backend with AI-powered insights",
     docs_url=f"{settings.API_PREFIX}/docs",
     redoc_url=f"{settings.API_PREFIX}/redoc",
-    openapi_url=f"{settings.API_PREFIX}/openapi.json"
+    openapi_url=f"{settings.API_PREFIX}/openapi.json",
 )
 
 # CORS middleware
@@ -30,10 +37,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting middleware
+app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
+
 # Request/Response logging middleware
 if settings.LOG_REQUESTS:
     from backend.api.middleware.logging_middleware import RequestLoggingMiddleware
+
     app.add_middleware(RequestLoggingMiddleware)
+
+# Optional centralized log shipping
+configure_logstash_logging()
+
+
+@app.on_event("startup")
+async def load_runtime_secrets() -> None:
+    """Load secrets from configured provider when available."""
+    jwt_secret = secret_manager.get("JWT_SECRET_KEY")
+    if jwt_secret:
+        settings.JWT_SECRET_KEY = jwt_secret
+
 
 # Exception handlers
 @app.exception_handler(Exception)
@@ -44,8 +67,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={
             "error": "Internal server error",
             "detail": str(exc),
-            "timestamp": datetime.now().isoformat()
-        }
+            "timestamp": datetime.now().isoformat(),
+        },
     )
 
 
@@ -57,8 +80,15 @@ async def health_check():
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
+
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics():
+    """Prometheus scrape endpoint for infrastructure monitoring."""
+    payload, content_type = observability_metrics.prometheus_payload()
+    return Response(content=payload, media_type=content_type)
 
 
 # Root endpoint
@@ -69,15 +99,32 @@ async def root():
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "docs": f"{settings.API_PREFIX}/docs",
-        "health": "/health"
+        "health": "/health",
     }
 
 
 # Include routers
-app.include_router(pipelines.router, prefix=settings.API_PREFIX)
-app.include_router(executions.router, prefix=settings.API_PREFIX)
-app.include_router(metrics.router, prefix=settings.API_PREFIX)
-app.include_router(airflow.router, prefix=settings.API_PREFIX)
+app.include_router(auth_router, prefix=settings.API_PREFIX)
+app.include_router(
+    pipelines.router,
+    prefix=settings.API_PREFIX,
+    dependencies=[Depends(require_roles("admin", "operator", "viewer"))],
+)
+app.include_router(
+    executions.router,
+    prefix=settings.API_PREFIX,
+    dependencies=[Depends(require_roles("admin", "operator", "viewer"))],
+)
+app.include_router(
+    metrics.router,
+    prefix=settings.API_PREFIX,
+    dependencies=[Depends(require_roles("admin", "operator", "viewer"))],
+)
+app.include_router(
+    airflow.router,
+    prefix=settings.API_PREFIX,
+    dependencies=[Depends(require_roles("admin", "operator"))],
+)
 
 
 # Run server
@@ -87,5 +134,5 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

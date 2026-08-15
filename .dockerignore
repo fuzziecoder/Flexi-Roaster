@@ -1,0 +1,10 @@
+.git
+.gitignore
+node_modules
+dist
+__pycache__
+*.pyc
+.env
+.env.*
+*.db
+pipeline/airflow/logs

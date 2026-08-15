@@ -18,6 +18,8 @@ from db import (
 )
 from core.executor import pipeline_executor
 from core.redis_state import redis_state_manager
+from core.distributed_execution import execution_dispatcher
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -159,20 +161,33 @@ async def create_execution(
         for s in pipeline.stages
     ]
     
-    # Start execution in background
-    background_tasks.add_task(
-        execute_pipeline_background,
-        pipeline.id,
-        pipeline.name,
-        stages,
-        execution_data.variables,
-        execution_data.triggered_by
-    )
-    
+    # Queue execution to distributed workers (fallback to API background task)
+    if settings.EXECUTION_QUEUE_BACKEND == "celery":
+        queue_result = execution_dispatcher.enqueue_execution(
+            pipeline.id,
+            pipeline.name,
+            stages,
+            execution_data.variables,
+            execution_data.triggered_by,
+        )
+        message = f"Pipeline execution queued for {pipeline.name}"
+        if queue_result.get("task_id"):
+            message += f" (task_id={queue_result['task_id']})"
+    else:
+        background_tasks.add_task(
+            execute_pipeline_background,
+            pipeline.id,
+            pipeline.name,
+            stages,
+            execution_data.variables,
+            execution_data.triggered_by
+        )
+        message = f"Pipeline execution started for {pipeline.name}"
+
     return ExecutionStartResponse(
         success=True,
         status="accepted",
-        message=f"Pipeline execution started for {pipeline.name}"
+        message=message
     )
 
 
@@ -227,20 +242,33 @@ async def execute_pipeline(
         for s in pipeline.stages
     ]
     
-    # Start execution in background
-    background_tasks.add_task(
-        execute_pipeline_background,
-        pipeline.id,
-        pipeline.name,
-        stages,
-        variables or {},
-        triggered_by
-    )
-    
+    # Queue execution to distributed workers (fallback to API background task)
+    if settings.EXECUTION_QUEUE_BACKEND == "celery":
+        queue_result = execution_dispatcher.enqueue_execution(
+            pipeline.id,
+            pipeline.name,
+            stages,
+            variables or {},
+            triggered_by,
+        )
+        message = f"Pipeline execution queued for {pipeline.name}"
+        if queue_result.get("task_id"):
+            message += f" (task_id={queue_result['task_id']})"
+    else:
+        background_tasks.add_task(
+            execute_pipeline_background,
+            pipeline.id,
+            pipeline.name,
+            stages,
+            variables or {},
+            triggered_by
+        )
+        message = f"Pipeline execution started for {pipeline.name}"
+
     return ExecutionStartResponse(
         success=True,
         status="accepted",
-        message=f"Pipeline execution started for {pipeline.name}"
+        message=message
     )
 
 

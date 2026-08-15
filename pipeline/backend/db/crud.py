@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
 import logging
+import asyncio
+
+from core.elasticsearch_client import elasticsearch_manager
 
 from db.models import (
     PipelineDB, PipelineStageDB, ExecutionDB, StageExecutionDB,
@@ -326,6 +329,26 @@ class LogCRUD:
         )
         db.add(log)
         db.flush()
+
+        # Best-effort indexing for search and analytics
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                elasticsearch_manager.index_execution_log(
+                    {
+                        "timestamp": log.timestamp.isoformat() if log.timestamp else datetime.now().isoformat(),
+                        "execution_id": execution_id,
+                        "pipeline_id": getattr(log.execution, "pipeline_id", None) if hasattr(log, "execution") else None,
+                        "stage_id": stage_id,
+                        "level": level,
+                        "message": message,
+                        "metadata": metadata or {},
+                    }
+                )
+            )
+        except RuntimeError:
+            pass
+
         return log
     
     @staticmethod
