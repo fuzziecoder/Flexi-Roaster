@@ -126,6 +126,8 @@ def initialize_execution(
     if execution_backend:
         merged_context["requested_execution_backend"] = execution_backend
 
+
+async def execute_pipeline_background(pipeline_id: str, execution_id: str):
     execution = Execution(
         id=execution_id,
         pipeline_id=pipeline_id,
