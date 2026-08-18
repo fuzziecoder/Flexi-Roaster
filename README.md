@@ -24,6 +24,7 @@
 - [Safety & Production Requirements](#safety--production-requirements)
 - [Testing & Quality](#testing--quality)
 - [Contributing](#contributing)
+- [Contributors](#contributors)
 
 ---
 
@@ -380,3 +381,13 @@ Use examples in:
 ## License
 
 MIT License.
+
+---
+
+## Contributors
+
+Thank you to everyone who has contributed to this project!
+
+<a href="https://github.com/fuzziecoder/Flexi-Roaster/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=fuzziecoder/Flexi-Roaster" alt="Contributors" />
+</a>
